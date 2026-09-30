@@ -1,0 +1,13 @@
+{
+  "name": "eii-ke-okhane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.{ts,json}\""
+  }
+}
