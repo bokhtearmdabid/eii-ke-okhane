@@ -1,0 +1,8 @@
+{
+  "id": "dummy",
+  "name": "Training Bhoot",
+  "maxHealth": 120,
+  "gravity": 720,
+  "iFramesOnHit": 0,
+  "getupIFrames": 30
+}

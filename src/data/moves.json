@@ -1,0 +1,49 @@
+{
+  "punch1": {
+    "name": "Jab", "pose": "punch",
+    "startup": 3, "active": 3, "recovery": 9,
+    "damage": 5, "hitstun": 14, "knockbackX": 70,
+    "hitPause": 3, "energyGain": 2, "lunge": 20,
+    "next": "punch2",
+    "hitbox": { "offsetX": 20, "width": 22, "zMin": 14, "zMax": 34, "depth": 18 }
+  },
+  "punch2": {
+    "name": "Cross", "pose": "punch",
+    "startup": 3, "active": 3, "recovery": 9,
+    "damage": 6, "hitstun": 14, "knockbackX": 90,
+    "hitPause": 3, "energyGain": 2, "lunge": 25,
+    "next": "punch3",
+    "hitbox": { "offsetX": 20, "width": 22, "zMin": 14, "zMax": 34, "depth": 18 }
+  },
+  "punch3": {
+    "name": "Finisher", "pose": "punch",
+    "startup": 5, "active": 4, "recovery": 16,
+    "damage": 10, "hitstun": 0, "knockbackX": 130,
+    "knockdown": true, "launch": 150,
+    "hitPause": 8, "shake": 0.003, "energyGain": 4, "lunge": 40,
+    "hitbox": { "offsetX": 24, "width": 28, "zMin": 12, "zMax": 36, "depth": 18 }
+  },
+  "kick": {
+    "name": "Kick", "pose": "kick",
+    "startup": 6, "active": 4, "recovery": 14,
+    "damage": 9, "hitstun": 20, "knockbackX": 130,
+    "hitPause": 6, "energyGain": 3,
+    "hitbox": { "offsetX": 26, "width": 30, "zMin": 6, "zMax": 26, "depth": 18 }
+  },
+  "jumpKick": {
+    "name": "Jump Kick", "pose": "jumpKick",
+    "startup": 2, "active": 20, "recovery": 0, "endOnLand": true,
+    "damage": 8, "hitstun": 22, "knockbackX": 110,
+    "hitPause": 5, "energyGain": 3,
+    "hitbox": { "offsetX": 20, "width": 28, "zMin": 0, "zMax": 24, "depth": 18 }
+  },
+  "lathiSpin": {
+    "name": "Lathi Spin", "pose": "spin",
+    "startup": 4, "active": 10, "recovery": 16,
+    "damage": 14, "hitstun": 0, "knockbackX": 160,
+    "knockdown": true, "launch": 170,
+    "hitPause": 9, "shake": 0.005,
+    "energyCost": 30, "invincible": true,
+    "hitbox": { "offsetX": 0, "width": 72, "zMin": 0, "zMax": 44, "depth": 28 }
+  }
+}

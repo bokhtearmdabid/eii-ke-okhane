@@ -1,9 +1,19 @@
 {
-  "id": "rafiq",
-  "name": "Rafiq",
+  "id": "abid",
+  "name": "Abid",
   "speedX": 95,
   "speedY": 55,
   "jumpVelocity": 230,
   "gravity": 720,
-  "maxHealth": 100
+  "maxHealth": 100,
+  "maxEnergy": 100,
+  "energyRegen": 3,
+  "iFramesOnHit": 60,
+  "getupIFrames": 45,
+  "moveset": {
+    "punch": "punch1",
+    "kick": "kick",
+    "airAttack": "jumpKick",
+    "special": "lathiSpin"
+  }
 }

@@ -1,34 +1,27 @@
 import Phaser from 'phaser';
-import { LANE_BOTTOM, LANE_TOP, WORLD_WIDTH } from '../config/constants';
+import { FRAME_RATE, INPUT_BUFFER_FRAMES } from '../config/constants';
+import { getMove, type MoveDef } from '../systems/Moves';
 import type { InputState } from '../systems/InputSystem';
+import { Fighter, type FighterStats } from './Fighter';
 
-export interface PlayerConfig {
+export interface PlayerConfig extends FighterStats {
   id: string;
   name: string;
   speedX: number;
   speedY: number;
   jumpVelocity: number;
-  gravity: number;
-  maxHealth: number;
+  maxEnergy: number;
+  energyRegen: number; // per second
+  moveset: { punch: string; kick: string; airAttack: string; special: string };
 }
 
-/**
- * Beat 'em up movement model:
- *  - (x, groundY) is where the feet touch the street. groundY is the depth in the lane.
- *  - z is the height above the ground while jumping.
- *  - The sprite is drawn at (x, groundY - z); the shadow stays at (x, groundY).
- *  - Depth sorting uses groundY, so whoever is lower on screen is drawn in front.
- */
-export class Player {
-  readonly sprite: Phaser.GameObjects.Sprite;
-  private readonly shadow: Phaser.GameObjects.Ellipse;
+export class Player extends Fighter {
+  energy: number;
+  energyDenied = 0; // frames left to flash the energy bar after a failed special
 
-  x: number;
-  groundY: number;
-  z = 0;
-  facing: 1 | -1 = 1;
-  private vz = 0;
+  private readonly buffer = { jump: 0, punch: 0, kick: 0, special: 0 };
   private walkClock = 0;
+  private bob = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -36,18 +29,56 @@ export class Player {
     groundY: number,
     private readonly cfg: PlayerConfig,
   ) {
-    this.x = x;
-    this.groundY = groundY;
-    this.shadow = scene.add.ellipse(x, groundY, 22, 6, 0x000000, 0.45);
-    this.sprite = scene.add.sprite(x, groundY, 'player').setOrigin(0.5, 1);
+    super(scene, 'player', x, groundY, cfg, 'player-idle');
+    this.energy = cfg.maxEnergy;
   }
 
-  get isGrounded(): boolean {
-    return this.z <= 0;
+  get maxEnergy(): number {
+    return this.cfg.maxEnergy;
+  }
+
+  /** Moves count as invincible during their own frames (e.g. the special). */
+  get invincible(): boolean {
+    return super.invincible || (this.state === 'attack' && !!this.attack?.move.invincible);
+  }
+
+  onHitLanded(move: MoveDef): void {
+    this.energy = Math.min(this.cfg.maxEnergy, this.energy + (move.energyGain ?? 0));
+  }
+
+  /** Remember presses. GameScene also calls this during hit-pause so no input is lost. */
+  bufferActions(input: InputState): void {
+    const n = INPUT_BUFFER_FRAMES;
+    if (input.jump) this.buffer.jump = n;
+    if (input.punch) this.buffer.punch = n;
+    if (input.kick) this.buffer.kick = n;
+    if (input.special) this.buffer.special = n;
   }
 
   update(dt: number, input: InputState): void {
-    // Move (normalised so diagonals aren't faster). Allowed in the air too.
+    const df = dt * FRAME_RATE;
+
+    this.bufferActions(input);
+    this.tickTimers(df);
+    this.energy = Math.min(this.cfg.maxEnergy, this.energy + this.cfg.energyRegen * dt);
+    this.energyDenied = Math.max(0, this.energyDenied - df);
+
+    if (!this.updateReaction(df)) {
+      if (this.state === 'attack') this.updateAttack(dt, df, input);
+      else this.updateFree(dt, input);
+    }
+
+    this.updatePhysics(dt);
+
+    for (const k of Object.keys(this.buffer) as (keyof typeof this.buffer)[]) {
+      this.buffer[k] = Math.max(0, this.buffer[k] - df);
+    }
+    this.draw();
+  }
+
+  // ---------- states ----------
+
+  private updateFree(dt: number, input: InputState): void {
     let mx = input.moveX;
     let my = input.moveY;
     const len = Math.hypot(mx, my);
@@ -55,43 +86,82 @@ export class Player {
       mx /= len;
       my /= len;
     }
-
     this.x += mx * this.cfg.speedX * dt;
     this.groundY += my * this.cfg.speedY * dt;
-    this.x = Phaser.Math.Clamp(this.x, 16, WORLD_WIDTH - 16);
-    this.groundY = Phaser.Math.Clamp(this.groundY, LANE_TOP, LANE_BOTTOM);
-
     if (mx !== 0) this.facing = mx > 0 ? 1 : -1;
 
-    // Jump (fake Z axis)
-    if (input.jump && this.isGrounded) this.vz = this.cfg.jumpVelocity;
-    if (this.vz !== 0 || this.z > 0) {
-      this.vz -= this.cfg.gravity * dt;
-      this.z += this.vz * dt;
-      if (this.z <= 0) {
-        this.z = 0;
-        this.vz = 0;
-      }
+    if (this.buffer.jump > 0 && this.isGrounded) {
+      this.vz = this.cfg.jumpVelocity;
+      this.buffer.jump = 0;
     }
 
-    // Tiny walk bob so movement feels alive even with a static placeholder
+    this.tryStartAttack();
+
     const moving = (mx !== 0 || my !== 0) && this.isGrounded;
     this.walkClock = moving ? this.walkClock + dt : 0;
-    const bob = moving && Math.floor(this.walkClock * 8) % 2 === 1 ? 1 : 0;
-
-    this.syncSprites(bob);
+    this.bob = moving && Math.floor(this.walkClock * 8) % 2 === 1 ? 1 : 0;
   }
 
-  private syncSprites(bob: number): void {
-    this.sprite.setPosition(Math.round(this.x), Math.round(this.groundY - this.z - bob));
-    this.sprite.setFlipX(this.facing === -1);
-    this.sprite.setDepth(this.groundY);
+  private tryStartAttack(): void {
+    const ms = this.cfg.moveset;
+    const b = this.buffer;
 
-    // Shadow shrinks and fades as the player rises
-    const t = Phaser.Math.Clamp(this.z / 60, 0, 1);
-    this.shadow.setPosition(Math.round(this.x), Math.round(this.groundY));
-    this.shadow.setScale(1 - t * 0.4);
-    this.shadow.setAlpha(0.45 - t * 0.2);
-    this.shadow.setDepth(this.groundY - 1);
+    if (b.special > 0) {
+      if (this.energy >= (getMove(ms.special).energyCost ?? 0)) {
+        this.startAttack(ms.special);
+        return;
+      }
+      b.special = 0;
+      this.energyDenied = 20;
+    }
+
+    if (!this.isGrounded) {
+      if (b.punch > 0 || b.kick > 0) this.startAttack(ms.airAttack);
+    } else if (b.kick > 0) {
+      this.startAttack(ms.kick);
+    } else if (b.punch > 0) {
+      this.startAttack(ms.punch);
+    }
+  }
+
+  private startAttack(id: string): void {
+    const move = getMove(id);
+    this.energy -= move.energyCost ?? 0;
+    this.attack = { id, move, frame: 0, hit: new Set() };
+    this.setState('attack');
+    this.buffer.punch = this.buffer.kick = this.buffer.special = 0;
+    this.bob = 0;
+  }
+
+  private updateAttack(dt: number, df: number, input: InputState): void {
+    const a = this.attack!;
+    const m = a.move;
+    a.frame += df;
+    const activeEnd = m.startup + m.active;
+
+    if (m.lunge && a.frame < activeEnd) this.x += this.facing * m.lunge * dt;
+    if (!this.isGrounded) this.x += input.moveX * this.cfg.speedX * 0.5 * dt; // air drift
+
+    // Combo: a punch buffered during the swing chains once the hit frames are over
+    if (m.next && a.frame >= activeEnd && this.buffer.punch > 0) {
+      if (input.moveX !== 0) this.facing = input.moveX > 0 ? 1 : -1;
+      this.startAttack(m.next);
+      return;
+    }
+
+    if (!m.endOnLand && a.frame >= activeEnd + m.recovery) this.setState('free');
+  }
+
+  protected onLand(): void {
+    super.onLand();
+    if (this.state === 'attack' && this.attack?.move.endOnLand) this.setState('free');
+  }
+
+  private draw(): void {
+    let tex = 'player-idle';
+    if (this.state === 'attack' && this.attack) tex = `player-${this.attack.move.pose}`;
+    else if (this.state === 'hurt') tex = 'player-hurt';
+    else if (this.state === 'down') tex = 'player-down';
+    this.syncSprites(tex, this.bob);
   }
 }

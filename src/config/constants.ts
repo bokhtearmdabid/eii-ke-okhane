@@ -30,4 +30,8 @@ export const COLORS = {
   neonAmber: 0xffc857,
 } as const;
 
+export const FRAME_RATE = 60; 
+export const FRAME_MS = 1000 / FRAME_RATE;
+export const INPUT_BUFFER_FRAMES = 10; 
+
 export const FONT = 'monospace';
