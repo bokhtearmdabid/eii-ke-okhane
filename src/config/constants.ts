@@ -1,12 +1,18 @@
 export const GAME_TITLE = 'Eii Ke Okhane';
 
-// Internal render resolution (16:9). Phaser scales it up with nearest-neighbour filtering.
+// Internal resolution (16:9)
 export const GAME_WIDTH = 480;
 export const GAME_HEIGHT = 270;
 
-// Walkable street band (y range for fighters' feet). Used from Step 2 onward.
+// Where the street starts (everything above is background/shopfronts).
+export const STREET_TOP = 145;
+
+// Walkable band: y range for fighters' feet.
 export const LANE_TOP = 165;
 export const LANE_BOTTOM = 252;
+
+// Test stage 
+export const WORLD_WIDTH = 1600;
 
 export const SCENE_KEYS = {
   Boot: 'BootScene',

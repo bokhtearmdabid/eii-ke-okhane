@@ -1,0 +1,9 @@
+{
+  "id": "rafiq",
+  "name": "Rafiq",
+  "speedX": 95,
+  "speedY": 55,
+  "jumpVelocity": 230,
+  "gravity": 720,
+  "maxHealth": 100
+}
