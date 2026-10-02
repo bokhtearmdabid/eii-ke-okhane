@@ -1,0 +1,51 @@
+{
+  "id": "stage1",
+  "title": "STAGE 1",
+  "name": "Shakhari Bazar",
+  "length": 2400,
+  "playerStart": { "x": 60, "y": 208 },
+  "waves": [
+    {
+      "id": "w1",
+      "triggerX": 320,
+      "spawns": [
+        { "enemy": "petni", "side": "right", "delay": 0.0, "y": 190 },
+        { "enemy": "petni", "side": "right", "delay": 0.8, "y": 225 },
+        { "enemy": "petni", "side": "left", "delay": 1.6, "y": 205 }
+      ]
+    },
+    {
+      "id": "w2",
+      "triggerX": 800,
+      "spawns": [
+        { "enemy": "petni", "side": "right", "delay": 0.0, "y": 180 },
+        { "enemy": "petni", "side": "left", "delay": 0.4, "y": 220 },
+        { "enemy": "petni", "side": "right", "delay": 3.0, "y": 200 },
+        { "enemy": "petni", "side": "left", "delay": 3.4, "y": 235 }
+      ]
+    },
+    {
+      "id": "w3",
+      "triggerX": 1350,
+      "spawns": [
+        { "enemy": "petni", "side": "right", "delay": 0.0, "y": 190 },
+        { "enemy": "petni", "side": "right", "delay": 0.5, "y": 230 },
+        { "enemy": "petni", "side": "left", "delay": 1.0, "y": 210 },
+        { "enemy": "petni", "side": "right", "delay": 5.0, "y": 175 },
+        { "enemy": "petni", "side": "left", "delay": 5.5, "y": 245 }
+      ]
+    },
+    {
+      "id": "w4",
+      "triggerX": 1900,
+      "spawns": [
+        { "enemy": "petni", "side": "right", "delay": 0.0, "y": 185 },
+        { "enemy": "petni", "side": "left", "delay": 0.3, "y": 215 },
+        { "enemy": "petni", "side": "right", "delay": 0.6, "y": 245 },
+        { "enemy": "petni", "side": "left", "delay": 5.0, "y": 180 },
+        { "enemy": "petni", "side": "right", "delay": 5.3, "y": 210 },
+        { "enemy": "petni", "side": "left", "delay": 5.6, "y": 240 }
+      ]
+    }
+  ]
+}

@@ -43,6 +43,8 @@ export abstract class Fighter {
   vz = 0;
   vx = 0; // knockback velocity only (walking moves x directly)
   facing: 1 | -1 = 1;
+  minX = 16; // horizontal limits (the stage manager narrows these during a screen lock)
+  maxX = WORLD_WIDTH - 16;
 
   health: number;
   state: FighterState = 'free';
@@ -77,6 +79,11 @@ export abstract class Fighter {
 
   get invincible(): boolean {
     return this.invincibleFrames > 0;
+  }
+  
+  destroy(): void {
+    this.sprite.destroy();
+    this.shadow.destroy();
   }
 
   // ---------- boxes ----------
@@ -218,7 +225,7 @@ export abstract class Fighter {
       }
     }
 
-    this.x = Phaser.Math.Clamp(this.x, 16, WORLD_WIDTH - 16);
+    this.x = Phaser.Math.Clamp(this.x, this.minX, this.maxX);
     this.groundY = Phaser.Math.Clamp(this.groundY, LANE_TOP, LANE_BOTTOM);
   }
 

@@ -45,5 +45,13 @@
     "hitPause": 9, "shake": 0.005,
     "energyCost": 30, "invincible": true,
     "hitbox": { "offsetX": 0, "width": 72, "zMin": 0, "zMax": 44, "depth": 28 }
+  },
+
+  "petniClaw": {
+    "name": "Claw Swipe", "pose": "attack",
+    "startup": 24, "active": 5, "recovery": 22,
+    "damage": 8, "hitstun": 18, "knockbackX": 90,
+    "hitPause": 4, "lunge": 120,
+    "hitbox": { "offsetX": 22, "width": 26, "zMin": 8, "zMax": 34, "depth": 18 }
   }
 }

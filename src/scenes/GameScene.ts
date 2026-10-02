@@ -4,32 +4,52 @@ import {
   FONT,
   FRAME_MS,
   GAME_HEIGHT,
-  LANE_BOTTOM,
-  LANE_TOP,
+  GAME_WIDTH,
   SCENE_KEYS,
   STREET_TOP,
-  WORLD_WIDTH,
 } from '../config/constants';
-import dummyData from '../data/dummy.json';
 import playerData from '../data/player.json';
-import { Dummy } from '../entities/Dummy';
+import type { Enemy } from '../entities/Enemy';
 import type { Fighter } from '../entities/Fighter';
 import { Player } from '../entities/Player';
+import { CoinManager } from '../systems/CoinManager';
 import { CombatSystem, type HitEvent } from '../systems/CombatSystem';
 import { DebugDraw } from '../systems/DebugDraw';
+import { EnemyManager, EVENT_ENEMY_DEFEATED } from '../systems/EnemyManager';
 import { InputSystem } from '../systems/InputSystem';
 import { ParallaxBackground } from '../systems/ParallaxBackground';
+import { RunState } from '../systems/RunState';
+import { getStage } from '../systems/StageDefs';
+import {
+  EVENT_STAGE_COMPLETE,
+  EVENT_WAVE_CLEAR,
+  EVENT_WAVE_START,
+  StageManager,
+} from '../systems/StageManager';
+import { GateLock } from '../ui/GateLock';
+import { GoArrow } from '../ui/GoArrow';
 import { Hud } from '../ui/Hud';
 
+const START_LIVES = 3;
+const COIN_SCORE = 10;
+const LIFE_BONUS = 1000; // stage-clear bonus per remaining life
+
 export class GameScene extends Phaser.Scene {
+  private stageId = 'stage1';
+  private run!: RunState;
   private player!: Player;
-  private dummies: Dummy[] = [];
+  private enemies!: EnemyManager;
+  private coins!: CoinManager;
+  private stage!: StageManager;
   private combat!: CombatSystem;
   private inputSystem!: InputSystem;
   private hud!: Hud;
+  private gate!: GateLock;
+  private goArrow!: GoArrow;
   private debugDraw!: DebugDraw;
   private debugText!: Phaser.GameObjects.Text;
 
+  private ended = false; // game over or stage clear: the world is frozen
   private hitPauseMs = 0;
   private pauseTargets: Fighter[] = [];
 
@@ -37,67 +57,93 @@ export class GameScene extends Phaser.Scene {
     super(SCENE_KEYS.Game);
   }
 
+  /** scene.start(SCENE_KEYS.Game, { stage: 'stage2' }) will pick another stage later. */
+  init(data: { stage?: string }): void {
+    this.stageId = data.stage ?? 'stage1';
+  }
+
   create(): void {
     // Scene instances are reused on restart, so reset per-run state here
     this.hitPauseMs = 0;
     this.pauseTargets = [];
-    this.dummies = [];
+    this.ended = false;
 
-    new ParallaxBackground(this);
-    this.drawStreet();
+    const def = getStage(this.stageId);
+    this.run = new RunState(START_LIVES);
+
+    new ParallaxBackground(this, def.length);
+    this.drawStreet(def.length);
 
     this.inputSystem = new InputSystem(this);
     this.combat = new CombatSystem();
 
-    this.player = new Player(this, 60, (LANE_TOP + LANE_BOTTOM) / 2, playerData);
+    this.player = new Player(this, def.playerStart.x, def.playerStart.y, playerData);
+    this.player.maxX = def.length - 16;
     this.combat.add(this.player);
 
-    const spots: [number, number][] = [
-      [190, 200],
-      [260, 180],
-      [330, 225],
-    ];
-    for (const [x, y] of spots) {
-      const d = new Dummy(this, x, y, dummyData);
-      this.dummies.push(d);
-      this.combat.add(d);
-    }
+    this.enemies = new EnemyManager(this, this.combat, this.player, def.length);
+    this.coins = new CoinManager(this, this.player, () => {
+      this.run.coins++;
+      this.run.score += COIN_SCORE;
+    });
+    this.stage = new StageManager(this, def, this.player, this.enemies);
 
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
+    cam.setBounds(0, 0, def.length, GAME_HEIGHT);
     cam.startFollow(this.player.sprite, true, 0.12, 0.12);
     cam.setDeadzone(50, GAME_HEIGHT);
     cam.roundPixels = true;
 
-    this.hud = new Hud(this, this.player, playerData.name);
+    this.hud = new Hud(this, this.player, this.run, playerData.name);
+    this.gate = new GateLock(this);
+    this.goArrow = new GoArrow(this);
     this.debugDraw = new DebugDraw(this);
 
     this.debugText = this.add
-      .text(4, 36, '', { fontFamily: FONT, fontSize: '8px', color: '#9ff' })
+      .text(4, 48, '', { fontFamily: FONT, fontSize: '8px', color: '#9ff' })
       .setScrollFactor(0)
       .setDepth(10000);
 
     this.add
-      .text(
-        GAME_HEIGHT * 0.0 + 476,
-        4,
-        'Z/J punch  X/K kick  C/L special  Space jump  H hitboxes',
-        { fontFamily: FONT, fontSize: '6px', color: '#8a85b0' },
-      )
-      .setOrigin(1, 0)
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 8, 'Z punch  X kick  C special  Space jump  H debug', {
+        fontFamily: FONT,
+        fontSize: '6px',
+        color: '#8a85b0',
+      })
+      .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(10000);
 
+    // Game events
+    this.listen(EVENT_ENEMY_DEFEATED, (e: Enemy) => this.onEnemyDefeated(e));
+    this.listen(EVENT_WAVE_START, (lockX: number) => {
+      this.gate.lock(lockX);
+      this.goArrow.hide();
+    });
+    this.listen(EVENT_WAVE_CLEAR, () => {
+      this.gate.unlock();
+      this.goArrow.show();
+      this.banner('AREA CLEAR!');
+    });
+    this.listen(EVENT_STAGE_COMPLETE, () => this.finishStage());
+
     this.input.keyboard?.on('keydown-H', () => this.debugDraw.toggle());
     this.input.keyboard?.once('keydown-ESC', () => this.scene.start(SCENE_KEYS.Menu));
+
+    this.banner(`${def.title}\n${def.name.toUpperCase()}`);
   }
 
   update(_time: number, delta: number): void {
+    if (this.ended) {
+      this.hud.update();
+      return;
+    }
+
     const real = Math.min(delta, 50); // clamp so tab-switching doesn't teleport us
     const input = this.inputSystem.read();
 
     if (this.hitPauseMs > 0) {
-      // HIT-PAUSE: the world is frozen. We only shake the victims and remember button presses.
+      // HIT-PAUSE: the world is frozen. Only shake the victims and remember button presses.
       this.hitPauseMs -= real;
       this.player.bufferActions(input);
       const jitter = Math.floor(this.hitPauseMs / 33) % 2 === 0 ? 1 : -1;
@@ -105,17 +151,131 @@ export class GameScene extends Phaser.Scene {
     } else {
       const dt = real / 1000;
       this.player.update(dt, input);
-      for (const d of this.dummies) d.update(dt);
+      this.enemies.update(dt);
+      this.stage.update(dt);
+      this.coins.update(dt);
       this.handleHits(this.combat.update());
+      if (this.player.deathPending) this.onPlayerDown();
     }
+
+    if (this.stage.phase === 'locked') this.gate.setRemaining(this.stage.remaining);
 
     this.hud.update();
     this.debugDraw.draw(this.combat.all);
+    this.updateDebugText();
+  }
 
-    const p = this.player;
-    this.debugText.setText(
-      `state:${p.state} move:${p.attack?.id ?? '-'} z:${p.z.toFixed(0)} fps:${this.game.loop.actualFps.toFixed(0)}`,
+  // ---------- run flow ----------
+
+  private onEnemyDefeated(e: Enemy): void {
+    const r = e.reward;
+    this.run.score += r.score;
+    this.coins.drop(e.x, e.groundY, r.coins);
+    this.floatText(e.x, e.groundY - 40, `+${r.score}`, '#ffffff');
+  }
+
+  private onPlayerDown(): void {
+    this.run.lives -= 1;
+    if (this.run.lives <= 0) {
+      this.showEndScreen('GAME OVER', '#ff4f6d', [`SCORE ${this.run.score}`, `COINS ${this.run.coins}`]);
+    } else {
+      this.player.respawn();
+    }
+  }
+
+  private finishStage(): void {
+    this.goArrow.hide();
+    const bonus = this.run.lives * LIFE_BONUS;
+    this.run.score += bonus;
+    this.showEndScreen('STAGE CLEAR', '#38e8ff', [
+      `LIFE BONUS ${bonus}`,
+      `SCORE ${this.run.score}`,
+      `COINS ${this.run.coins}`,
+    ]);
+  }
+
+  private showEndScreen(title: string, color: string, lines: string[]): void {
+    this.ended = true;
+    const fix = <T extends Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.ScrollFactor & Phaser.GameObjects.Components.Depth>(
+      o: T,
+      d: number,
+    ): T => {
+      o.setScrollFactor(0);
+      o.setDepth(11000 + d);
+      return o;
+    };
+
+    fix(this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.65).setOrigin(0), 0);
+    fix(
+      this.add
+        .text(GAME_WIDTH / 2, 70, title, {
+          fontFamily: FONT,
+          fontSize: '24px',
+          color,
+          stroke: '#000000',
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5),
+      1,
     );
+    fix(
+      this.add
+        .text(GAME_WIDTH / 2, 110, lines.join('\n'), {
+          fontFamily: FONT,
+          fontSize: '10px',
+          color: '#ffffff',
+          align: 'center',
+          lineSpacing: 4,
+        })
+        .setOrigin(0.5, 0),
+      1,
+    );
+    const prompt = fix(
+      this.add
+        .text(GAME_WIDTH / 2, 215, 'TAP OR PRESS ENTER', {
+          fontFamily: FONT,
+          fontSize: '8px',
+          color: '#ffc857',
+        })
+        .setOrigin(0.5),
+      1,
+    );
+    this.tweens.add({ targets: prompt, alpha: 0.2, duration: 600, yoyo: true, repeat: -1 });
+
+    // Small delay so a button mash during the final blow doesn't skip the screen
+    this.time.delayedCall(700, () => {
+      const toMenu = (): void => {
+        this.scene.start(SCENE_KEYS.Menu);
+      };
+      this.input.keyboard?.once('keydown-ENTER', toMenu);
+      this.input.once('pointerdown', toMenu);
+    });
+  }
+
+  // ---------- feedback ----------
+
+  private banner(text: string): void {
+    const t = this.add
+      .text(GAME_WIDTH / 2, 80, text, {
+        fontFamily: FONT,
+        fontSize: '16px',
+        color: '#ffc857',
+        stroke: '#000000',
+        strokeThickness: 3,
+        align: 'center',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(10500)
+      .setAlpha(0);
+    this.tweens.add({
+      targets: t,
+      alpha: 1,
+      duration: 250,
+      hold: 1100,
+      yoyo: true,
+      onComplete: () => t.destroy(),
+    });
   }
 
   private handleHits(events: HitEvent[]): void {
@@ -127,11 +287,13 @@ export class GameScene extends Phaser.Scene {
       const d = e.defender;
       const px = d.x;
       const py = d.groundY - d.z - 22;
+      const playerHurt = d.team === 'player';
 
       this.spawnSpark(px, py, !!m.knockdown);
-      this.spawnDamage(px, py - 10, m.damage);
+      this.floatText(px, py - 10, String(m.damage), playerHurt ? '#ff6677' : '#ffc857');
       pauseFrames = Math.max(pauseFrames, m.hitPause);
       if (m.shake) this.cameras.main.shake(90, m.shake);
+      else if (playerHurt) this.cameras.main.shake(70, 0.002);
     }
 
     this.hitPauseMs = pauseFrames * FRAME_MS;
@@ -152,12 +314,12 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private spawnDamage(x: number, y: number, amount: number): void {
+  private floatText(x: number, y: number, text: string, color: string): void {
     const t = this.add
-      .text(x, y, String(amount), {
+      .text(x, y, text, {
         fontFamily: FONT,
         fontSize: '8px',
-        color: '#ffc857',
+        color,
         stroke: '#000000',
         strokeThickness: 2,
       })
@@ -167,24 +329,51 @@ export class GameScene extends Phaser.Scene {
       targets: t,
       y: y - 16,
       alpha: 0,
-      duration: 550,
+      duration: 650,
       onComplete: () => t.destroy(),
     });
   }
 
+  // ---------- helpers ----------
+
+  /** Scene events outlive a restart, so every listener is removed again on shutdown. */
+  private listen<A extends unknown[]>(event: string, fn: (...args: A) => void): void {
+    this.events.on(event, fn);
+    this.events.once('shutdown', () => this.events.off(event, fn));
+  }
+
+  private updateDebugText(): void {
+    const p = this.player;
+    const s = this.stage;
+    const e = this.enemies;
+    const lines = [
+      `player:${p.state} hp:${p.health} fps:${this.game.loop.actualFps.toFixed(0)}`,
+      `stage:${s.phase} wave:${Math.min(s.waveIndex + 1, s.waveCount)}/${s.waveCount} left:${s.remaining}`,
+      `enemies:${e.aliveCount} attackers:${e.attackerCount}/${e.maxAttackers}`,
+    ];
+    if (this.debugDraw.enabled) {
+      for (const en of e.enemies) {
+        lines.push(
+          `#${en.uid} ${en.aiState}${en.role === 'attacker' ? ' [ATK]' : ''} cd:${en.cooldownFrames}`,
+        );
+      }
+    }
+    this.debugText.setText(lines);
+  }
+
   /** The street floor: playfield layer, scrolls 1:1 with the camera. */
-  private drawStreet(): void {
+  private drawStreet(length: number): void {
     const g = this.add.graphics().setDepth(-100);
     const h = GAME_HEIGHT - STREET_TOP;
 
-    g.fillStyle(0x2a2340).fillRect(0, STREET_TOP, WORLD_WIDTH, h);
-    g.fillStyle(0x3a3158).fillRect(0, STREET_TOP, WORLD_WIDTH, 3);
-    g.fillStyle(0x221b38).fillRect(0, STREET_TOP + 3, WORLD_WIDTH, 12);
+    g.fillStyle(0x2a2340).fillRect(0, STREET_TOP, length, h);
+    g.fillStyle(0x3a3158).fillRect(0, STREET_TOP, length, 3);
+    g.fillStyle(0x221b38).fillRect(0, STREET_TOP + 3, length, 12);
 
     g.fillStyle(0x4a4070);
-    for (let x = 0; x < WORLD_WIDTH; x += 80) g.fillRect(x, 210, 40, 2);
+    for (let x = 0; x < length; x += 80) g.fillRect(x, 210, 40, 2);
 
     g.fillStyle(0x1c162e);
-    for (let x = 120; x < WORLD_WIDTH; x += 260) g.fillRect(x, 232, 14, 5);
+    for (let x = 120; x < length; x += 260) g.fillRect(x, 232, 14, 5);
   }
 }

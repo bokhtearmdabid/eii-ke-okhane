@@ -34,4 +34,6 @@ export const FRAME_RATE = 60;
 export const FRAME_MS = 1000 / FRAME_RATE;
 export const INPUT_BUFFER_FRAMES = 10; 
 
+export const MAX_ATTACKERS = 2; // how many enemies attack the player at the same time
+
 export const FONT = 'monospace';

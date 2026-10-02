@@ -1,0 +1,24 @@
+{
+  "petni": {
+    "id": "petni",
+    "name": "Petni",
+    "texture": "petni",
+    "maxHealth": 40,
+    "gravity": 720,
+    "iFramesOnHit": 0,
+    "getupIFrames": 30,
+    "speed": 52,
+    "speedY": 34,
+    "attackRange": 32,
+    "laneTolerance": 8,
+    "circleRadius": 95,
+    "attackCooldownMin": 120,
+    "attackCooldownMax": 220,
+    "thinkMin": 20,
+    "thinkMax": 50,
+    "hover": 6,
+    "score": 100,
+    "coinDrop": 2,
+    "attacks": ["petniClaw"]
+  }
+}

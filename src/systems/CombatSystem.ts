@@ -39,6 +39,11 @@ export class CombatSystem {
     this.fighters.push(f);
   }
 
+  remove(f: Fighter): void {
+    const i = this.fighters.indexOf(f);
+    if (i >= 0) this.fighters.splice(i, 1);
+  }
+
   get all(): readonly Fighter[] {
     return this.fighters;
   }

@@ -41,6 +41,22 @@ export class Player extends Fighter {
   get invincible(): boolean {
     return super.invincible || (this.state === 'attack' && !!this.attack?.move.invincible);
   }
+  
+  deathPending = false; // GameScene checks this to spend a life
+
+  /** Fighter calls this when the knockdown after reaching 0 health is over. */
+  protected onDefeated(): void {
+    this.deathPending = true;
+  }
+
+  /** Back on your feet with full health, blinking invincible for 2.5 s. */
+  respawn(): void {
+    this.deathPending = false;
+    this.health = this.stats.maxHealth;
+    this.energy = this.cfg.maxEnergy;
+    this.beginGetUp();
+    this.invincibleFrames = 150;
+  }
 
   onHitLanded(move: MoveDef): void {
     this.energy = Math.min(this.cfg.maxEnergy, this.energy + (move.energyGain ?? 0));

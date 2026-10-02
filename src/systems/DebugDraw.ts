@@ -5,7 +5,7 @@ import type { Box } from './CombatSystem';
 /** Press H in-game: green = hurtboxes, red = active hitboxes. */
 export class DebugDraw {
   private readonly g: Phaser.GameObjects.Graphics;
-  private enabled = false;
+  enabled = false;
 
   constructor(scene: Phaser.Scene) {
     this.g = scene.add.graphics().setDepth(20000);

@@ -90,11 +90,6 @@ const drawNear: Draw = (g, w, h, rng) => {
   }
 };
 
-/**
- * Builds parallax layers as wide textures and lets Phaser's scrollFactor do the work.
- * Width = screen + (stage - screen) * factor, so the layer's right edge meets the
- * screen edge exactly when the camera reaches the end of the stage.
- */
 export class ParallaxBackground {
   private static readonly LAYERS: LayerDef[] = [
     { key: 'bg-far', scrollFactor: 0.1, depth: -900, draw: drawFar },
@@ -102,20 +97,21 @@ export class ParallaxBackground {
     { key: 'bg-near', scrollFactor: 0.75, depth: -700, draw: drawNear },
   ];
 
-  constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, worldWidth = WORLD_WIDTH) {
     for (const layer of ParallaxBackground.LAYERS) {
-      const w = Math.ceil(GAME_WIDTH + (WORLD_WIDTH - GAME_WIDTH) * layer.scrollFactor);
+      const w = Math.ceil(GAME_WIDTH + (worldWidth - GAME_WIDTH) * layer.scrollFactor);
       const h = STREET_TOP;
+      const key = `${layer.key}-${worldWidth}`;
 
-      if (!scene.textures.exists(layer.key)) {
+      if (!scene.textures.exists(key)) {
         const g = scene.make.graphics({ x: 0, y: 0 }, false);
-        layer.draw(g, w, h, new Phaser.Math.RandomDataGenerator([layer.key]));
-        g.generateTexture(layer.key, w, h);
+        layer.draw(g, w, h, new Phaser.Math.RandomDataGenerator([key]));
+        g.generateTexture(key, w, h);
         g.destroy();
       }
 
       scene.add
-        .image(0, 0, layer.key)
+        .image(0, 0, key)
         .setOrigin(0, 0)
         .setScrollFactor(layer.scrollFactor, 0)
         .setDepth(layer.depth);
