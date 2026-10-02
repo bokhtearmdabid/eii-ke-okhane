@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { LANE_BOTTOM, LANE_TOP, WORLD_WIDTH } from '../config/constants';
-import type { Box } from '../systems/CombatSystem';
 import type { MoveDef } from '../systems/Moves';
+import type { Box, Hittable } from '../systems/CombatSystem';
 
 export interface FighterStats {
   maxHealth: number;
@@ -17,7 +17,7 @@ export interface AttackState {
   id: string;
   move: MoveDef;
   frame: number; // float frames since the move began
-  hit: Set<Fighter>; // who this swing has already hit
+  hit: Set<Hittable>; // who this swing has already hit (fighters and breakables)
 }
 
 const GROUND_FRICTION = 500; // px/s^2
@@ -28,11 +28,6 @@ const HURT_WIDTH = 16;
 const HURT_HEIGHT = 38;
 const HURT_DEPTH = 14;
 
-/**
- * Shared body for everyone who can fight. Handles position + fake-Z physics,
- * health, hit reactions (hurt / knockdown / get-up), invincibility and sprite sync.
- * Subclasses decide what a fighter *does* while in the 'free' and 'attack' states.
- */
 export abstract class Fighter {
   readonly sprite: Phaser.GameObjects.Sprite;
   protected readonly shadow: Phaser.GameObjects.Ellipse;

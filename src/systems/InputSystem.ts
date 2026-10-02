@@ -11,6 +11,7 @@ export interface InputState {
   punch: boolean;
   kick: boolean;
   special: boolean;
+  interact: boolean;
 }
 
 type Key = Phaser.Input.Keyboard.Key;
@@ -22,6 +23,7 @@ export class InputSystem {
   private readonly punchKeys: Key[];
   private readonly kickKeys: Key[];
   private readonly specialKeys: Key[];
+  private readonly interactKeys: Key[];
 
   constructor(scene: Phaser.Scene) {
     const kb = scene.input.keyboard!;
@@ -32,6 +34,7 @@ export class InputSystem {
     this.punchKeys = [kb.addKey(K.Z), kb.addKey(K.J)];
     this.kickKeys = [kb.addKey(K.X), kb.addKey(K.K)];
     this.specialKeys = [kb.addKey(K.C), kb.addKey(K.L)];
+    this.interactKeys = [kb.addKey(K.V), kb.addKey(K.E)];
   }
 
   /** JustDown must be called on every key so each press is consumed exactly once. */
@@ -54,6 +57,7 @@ export class InputSystem {
       punch: this.pressed(this.punchKeys),
       kick: this.pressed(this.kickKeys),
       special: this.pressed(this.specialKeys),
+      interact: this.pressed(this.interactKeys),
     };
   }
 }

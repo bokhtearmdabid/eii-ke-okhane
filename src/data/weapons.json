@@ -1,0 +1,20 @@
+{
+  "lathi": {
+    "name": "Lathi", "texture": "weapon-lathi", "attack": "lathiSwing1", "durability": 10,
+    "originX": 0.1, "carry": -60, "swingFrom": -90, "swingTo": 45,
+    "throwSpeed": 250, "throwSpin": 720, "throwDamage": 8,
+    "throwKnockdown": false, "throwKnockback": 90
+  },
+  "brick": {
+    "name": "Brick", "texture": "weapon-brick", "attack": "brickSmash", "durability": 6,
+    "originX": 0.2, "carry": -40, "swingFrom": -100, "swingTo": 60,
+    "throwSpeed": 230, "throwSpin": 900, "throwDamage": 18,
+    "throwKnockdown": true, "throwKnockback": 140
+  },
+  "paakha": {
+    "name": "Paakha", "texture": "weapon-paakha", "attack": "fanSlap1", "durability": 14,
+    "originX": 0.1, "carry": -50, "swingFrom": -60, "swingTo": 50,
+    "throwSpeed": 280, "throwSpin": 1080, "throwDamage": 5,
+    "throwKnockdown": false, "throwKnockback": 60
+  }
+}

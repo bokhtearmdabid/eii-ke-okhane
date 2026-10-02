@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, SCENE_KEYS } from '../config/constants';
 import { createPlaceholderTextures } from '../systems/PlaceholderArt';
+import { createItemTextures } from '../systems/ItemArt';
 
 /**
  * Loads all assets while showing a progress bar.
@@ -29,6 +30,7 @@ export class PreloadScene extends Phaser.Scene {
 
     create(): void {
     createPlaceholderTextures(this);
+    createItemTextures(this);
     this.scene.start(SCENE_KEYS.Menu);
   }
 }

@@ -4,6 +4,26 @@
   "name": "Shakhari Bazar",
   "length": 2400,
   "playerStart": { "x": 60, "y": 208 },
+  "pickups": [
+    { "kind": "weapon", "id": "lathi", "x": 150, "y": 215 },
+    { "kind": "weapon", "id": "brick", "x": 760, "y": 200 },
+    { "kind": "weapon", "id": "paakha", "x": 1250, "y": 225 },
+    { "kind": "food", "id": "singara", "x": 1700, "y": 210 }
+  ],
+  "props": [
+    { "type": "crate", "x": 230, "y": 190 },
+    { "type": "stool", "x": 270, "y": 235 },
+    { "type": "pot", "x": 420, "y": 200 },
+    { "type": "basket", "x": 480, "y": 230 },
+    { "type": "crate", "x": 640, "y": 215 },
+    { "type": "stool", "x": 700, "y": 185 },
+    { "type": "basket", "x": 1000, "y": 205 },
+    { "type": "pot", "x": 1080, "y": 235 },
+    { "type": "crate", "x": 1180, "y": 195 },
+    { "type": "pot", "x": 1500, "y": 220 },
+    { "type": "stool", "x": 1560, "y": 190 },
+    { "type": "crate", "x": 2000, "y": 210 }
+  ],
   "waves": [
     {
       "id": "w1",

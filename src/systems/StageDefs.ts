@@ -8,6 +8,12 @@ export interface SpawnDef {
   y: number; // lane position
 }
 
+export interface PropDef {
+  type: string; // key in breakables.json
+  x: number;
+  y: number;
+}
+
 export interface WaveDef {
   id: string;
   triggerX: number;
@@ -21,6 +27,15 @@ export interface StageDef {
   length: number;
   playerStart: { x: number; y: number };
   waves: WaveDef[];
+  props?: PropDef[];
+  pickups?: PickupDef[];
+}
+
+export interface PickupDef {
+  kind: 'weapon' | 'food';
+  id: string; // key in weapons.json / foods.json
+  x: number;
+  y: number;
 }
 
 /** Register new stages here as you add JSON files. */
@@ -46,6 +61,10 @@ function validate(def: StageDef): StageDef {
       if (s.y < LANE_TOP || s.y > LANE_BOTTOM) fail(`wave "${w.id}": y ${s.y} is outside the lane`);
     }
     prev = w.triggerX;
+  }
+    for (const o of [...(def.props ?? []), ...(def.pickups ?? [])]) {
+    if (o.x < 0 || o.x > def.length) fail(`object at x ${o.x} is outside the stage`);
+    if (o.y < LANE_TOP || o.y > LANE_BOTTOM) fail(`object at y ${o.y} is outside the lane`);
   }
   return def;
 }

@@ -1,0 +1,7 @@
+{
+  "singara":  { "name": "Singara",   "texture": "food-singara",  "heal": 15, "energy": 0 },
+  "jilapi":   { "name": "Jilapi",    "texture": "food-jilapi",   "heal": 22, "energy": 0 },
+  "cha":      { "name": "Cha",       "texture": "food-cha",      "heal": 10, "energy": 25 },
+  "roohafza": { "name": "Rooh Afza", "texture": "food-roohafza", "heal": 8,  "energy": 50 },
+  "biryani":  { "name": "Biryani",   "texture": "food-biryani",  "heal": 60, "energy": 20 }
+}

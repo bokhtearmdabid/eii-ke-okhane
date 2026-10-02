@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { Fighter } from '../entities/Fighter';
-import type { Box } from './CombatSystem';
+import type { Box, Hittable } from './CombatSystem';
 
 /** Press H in-game: green = hurtboxes, red = active hitboxes. */
 export class DebugDraw {
@@ -15,7 +15,7 @@ export class DebugDraw {
     this.enabled = !this.enabled;
   }
 
-  draw(fighters: readonly Fighter[]): void {
+  draw(fighters: readonly Fighter[], props: readonly Hittable[] = []): void {
     this.g.clear();
     if (!this.enabled) return;
     for (const f of fighters) {
@@ -23,6 +23,7 @@ export class DebugDraw {
       const hb = f.hitbox();
       if (hb) this.box(hb, 0xff2244);
     }
+    for (const p of props) this.box(p.hurtbox, 0xffaa00);
   }
 
   private box(b: Box, color: number): void {

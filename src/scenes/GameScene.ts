@@ -10,14 +10,21 @@ import {
 } from '../config/constants';
 import playerData from '../data/player.json';
 import type { Enemy } from '../entities/Enemy';
-import type { Fighter } from '../entities/Fighter';
 import { Player } from '../entities/Player';
-import { CoinManager } from '../systems/CoinManager';
-import { CombatSystem, type HitEvent } from '../systems/CombatSystem';
+import { CombatSystem, type HitEvent, type Hittable } from '../systems/CombatSystem';
 import { DebugDraw } from '../systems/DebugDraw';
 import { EnemyManager, EVENT_ENEMY_DEFEATED } from '../systems/EnemyManager';
 import { InputSystem } from '../systems/InputSystem';
+import type { BreakableDef, DropEntry, FoodDef, WeaponDef } from '../systems/ItemDefs';
+import {
+  EVENT_COIN,
+  EVENT_FOOD,
+  EVENT_WEAPON_BROKE,
+  EVENT_WEAPON_PICKED,
+  ItemManager,
+} from '../systems/ItemManager';
 import { ParallaxBackground } from '../systems/ParallaxBackground';
+import { EVENT_PROP_BROKEN, PropManager } from '../systems/PropManager';
 import { RunState } from '../systems/RunState';
 import { getStage } from '../systems/StageDefs';
 import {
@@ -34,12 +41,20 @@ const START_LIVES = 3;
 const COIN_SCORE = 10;
 const LIFE_BONUS = 1000; // stage-clear bonus per remaining life
 
+/** Small chance that a defeated enemy drops something to eat. */
+const ENEMY_DROPS: DropEntry[] = [
+  { kind: 'food', id: 'singara', chance: 0.06 },
+  { kind: 'food', id: 'jilapi', chance: 0.04 },
+  { kind: 'food', id: 'cha', chance: 0.04 },
+];
+
 export class GameScene extends Phaser.Scene {
   private stageId = 'stage1';
   private run!: RunState;
   private player!: Player;
   private enemies!: EnemyManager;
-  private coins!: CoinManager;
+  private items!: ItemManager;
+  private props!: PropManager;
   private stage!: StageManager;
   private combat!: CombatSystem;
   private inputSystem!: InputSystem;
@@ -51,7 +66,7 @@ export class GameScene extends Phaser.Scene {
 
   private ended = false; // game over or stage clear: the world is frozen
   private hitPauseMs = 0;
-  private pauseTargets: Fighter[] = [];
+  private pauseTargets: Hittable[] = [];
 
   constructor() {
     super(SCENE_KEYS.Game);
@@ -82,11 +97,12 @@ export class GameScene extends Phaser.Scene {
     this.combat.add(this.player);
 
     this.enemies = new EnemyManager(this, this.combat, this.player, def.length);
-    this.coins = new CoinManager(this, this.player, () => {
-      this.run.coins++;
-      this.run.score += COIN_SCORE;
-    });
+    this.items = new ItemManager(this, this.combat, this.player);
+    this.props = new PropManager(this, this.combat, this.items);
     this.stage = new StageManager(this, def, this.player, this.enemies);
+
+    for (const p of def.props ?? []) this.props.spawn(p.type, p.x, p.y);
+    for (const k of def.pickups ?? []) this.items.place(k.kind, k.id, k.x, k.y);
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, def.length, GAME_HEIGHT);
@@ -105,7 +121,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10000);
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 8, 'Z punch  X kick  C special  Space jump  H debug', {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 8, 'Z attack  X kick  C special  Space jump  V pick/throw  H debug', {
         fontFamily: FONT,
         fontSize: '6px',
         color: '#8a85b0',
@@ -116,6 +132,26 @@ export class GameScene extends Phaser.Scene {
 
     // Game events
     this.listen(EVENT_ENEMY_DEFEATED, (e: Enemy) => this.onEnemyDefeated(e));
+    this.listen(EVENT_COIN, () => {
+      this.run.coins++;
+      this.run.score += COIN_SCORE;
+    });
+    this.listen(
+      EVENT_FOOD,
+      (food: FoodDef, x: number, y: number, healed: number, energy: number) => {
+        if (healed > 0) this.floatText(x, y, `+${healed} HP`, '#5cff7a');
+        if (energy > 0) this.floatText(x, y + (healed > 0 ? 9 : 0), `+${energy} EN`, '#38e8ff');
+        this.floatText(x, y - 10, food.name.toUpperCase(), '#ffffff');
+      },
+    );
+    this.listen(EVENT_WEAPON_PICKED, (w: WeaponDef, x: number, y: number) =>
+      this.floatText(x, y, w.name.toUpperCase(), '#ffc857'),
+    );
+    this.listen(EVENT_WEAPON_BROKE, (x: number, y: number) => this.floatText(x, y, 'BROKE!', '#ff6677'));
+    this.listen(EVENT_PROP_BROKEN, (d: BreakableDef, x: number, y: number) => {
+      this.run.score += d.score;
+      this.floatText(x, y - 4, `+${d.score}`, '#ffffff');
+    });
     this.listen(EVENT_WAVE_START, (lockX: number) => {
       this.gate.lock(lockX);
       this.goArrow.hide();
@@ -153,15 +189,16 @@ export class GameScene extends Phaser.Scene {
       this.player.update(dt, input);
       this.enemies.update(dt);
       this.stage.update(dt);
-      this.coins.update(dt);
-      this.handleHits(this.combat.update());
+      const thrownHits = this.items.update(dt);
+      this.props.update(dt);
+      this.handleHits([...thrownHits, ...this.combat.update()]);
       if (this.player.deathPending) this.onPlayerDown();
     }
 
     if (this.stage.phase === 'locked') this.gate.setRemaining(this.stage.remaining);
 
     this.hud.update();
-    this.debugDraw.draw(this.combat.all);
+    this.debugDraw.draw(this.combat.all, this.combat.targetList);
     this.updateDebugText();
   }
 
@@ -170,7 +207,8 @@ export class GameScene extends Phaser.Scene {
   private onEnemyDefeated(e: Enemy): void {
     const r = e.reward;
     this.run.score += r.score;
-    this.coins.drop(e.x, e.groundY, r.coins);
+    this.items.dropCoins(e.x, e.groundY, r.coins);
+    this.items.rollDrops(ENEMY_DROPS, e.x, e.groundY);
     this.floatText(e.x, e.groundY - 40, `+${r.score}`, '#ffffff');
   }
 
@@ -196,7 +234,11 @@ export class GameScene extends Phaser.Scene {
 
   private showEndScreen(title: string, color: string, lines: string[]): void {
     this.ended = true;
-    const fix = <T extends Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.ScrollFactor & Phaser.GameObjects.Components.Depth>(
+    const fix = <
+      T extends Phaser.GameObjects.GameObject &
+        Phaser.GameObjects.Components.ScrollFactor &
+        Phaser.GameObjects.Components.Depth,
+    >(
       o: T,
       d: number,
     ): T => {
@@ -290,7 +332,9 @@ export class GameScene extends Phaser.Scene {
       const playerHurt = d.team === 'player';
 
       this.spawnSpark(px, py, !!m.knockdown);
-      this.floatText(px, py - 10, String(m.damage), playerHurt ? '#ff6677' : '#ffc857');
+      if (d.team !== 'neutral') {
+        this.floatText(px, py - 10, String(m.damage), playerHurt ? '#ff6677' : '#ffc857');
+      }
       pauseFrames = Math.max(pauseFrames, m.hitPause);
       if (m.shake) this.cameras.main.shake(90, m.shake);
       else if (playerHurt) this.cameras.main.shake(70, 0.002);
@@ -329,7 +373,7 @@ export class GameScene extends Phaser.Scene {
       targets: t,
       y: y - 16,
       alpha: 0,
-      duration: 650,
+      duration: 750,
       onComplete: () => t.destroy(),
     });
   }
@@ -347,9 +391,9 @@ export class GameScene extends Phaser.Scene {
     const s = this.stage;
     const e = this.enemies;
     const lines = [
-      `player:${p.state} hp:${p.health} fps:${this.game.loop.actualFps.toFixed(0)}`,
+      `player:${p.state} hp:${p.health} weapon:${p.weapon ? `${p.weapon.id} x${p.weapon.uses}` : '-'} fps:${this.game.loop.actualFps.toFixed(0)}`,
       `stage:${s.phase} wave:${Math.min(s.waveIndex + 1, s.waveCount)}/${s.waveCount} left:${s.remaining}`,
-      `enemies:${e.aliveCount} attackers:${e.attackerCount}/${e.maxAttackers}`,
+      `enemies:${e.aliveCount} attackers:${e.attackerCount}/${e.maxAttackers} items:${this.items.itemCount} props:${this.props.count}`,
     ];
     if (this.debugDraw.enabled) {
       for (const en of e.enemies) {

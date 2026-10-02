@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, FONT, GAME_WIDTH } from '../config/constants';
 import type { Player } from '../entities/Player';
 import type { RunState } from '../systems/RunState';
+import { getWeapon } from '../systems/ItemDefs';
 
 const HP_W = 80;
 const EN_W = 60;
@@ -28,6 +29,8 @@ export class Hud {
   private readonly livesText: Phaser.GameObjects.Text;
   private readonly coinText: Phaser.GameObjects.Text;
   private readonly scoreText: Phaser.GameObjects.Text;
+  private readonly weaponIcon: Phaser.GameObjects.Image;
+  private readonly weaponText: Phaser.GameObjects.Text;
 
   constructor(
     scene: Phaser.Scene,
@@ -54,6 +57,8 @@ export class Hud {
     this.livesText = pin(scene.add.text(4, 35, '', label), 1);
     pin(scene.add.circle(47, 39, 3, 0xffc857).setStrokeStyle(1, 0xb8860b), 1);
     this.coinText = pin(scene.add.text(53, 35, '', label), 1);
+    this.weaponIcon = pin(scene.add.image(100, 40, 'weapon-lathi').setVisible(false), 1);
+    this.weaponText = pin(scene.add.text(114, 35, '', label), 1);
 
     this.scoreText = pin(
       scene.add.text(GAME_WIDTH - 4, 4, '', { ...label, color: '#ffc857' }).setOrigin(1, 0),
@@ -73,9 +78,22 @@ export class Hud {
     this.sync(this.livesText, `LIVES ${Math.max(0, this.run.lives)}`);
     this.sync(this.coinText, `x${this.run.coins}`);
     this.sync(this.scoreText, `SCORE ${String(this.run.score).padStart(6, '0')}`);
+
+    const w = p.weapon;
+    if (w) {
+      const def = getWeapon(w.id);
+      if (this.weaponIcon.texture.key !== def.texture) this.weaponIcon.setTexture(def.texture);
+      const s = Math.min(1, 18 / Math.max(this.weaponIcon.width, this.weaponIcon.height));
+      this.weaponIcon.setScale(s).setVisible(true);
+      this.sync(this.weaponText, `x${w.uses}`);
+    } else {
+      this.weaponIcon.setVisible(false);
+      this.sync(this.weaponText, '');
+    }
   }
 
   private sync(t: Phaser.GameObjects.Text, value: string): void {
     if (t.text !== value) t.setText(value);
   }
+  
 }

@@ -28,6 +28,7 @@ export interface MoveDef {
   invincible?: boolean;
   endOnLand?: boolean;
   next?: string;
+  weapon?: boolean;
 }
 
 export const MOVES = movesJson as unknown as Record<string, MoveDef>;

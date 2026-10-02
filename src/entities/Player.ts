@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { FRAME_RATE, INPUT_BUFFER_FRAMES } from '../config/constants';
-import { getMove, type MoveDef } from '../systems/Moves';
+import { getWeapon } from '../systems/ItemDefs';
 import type { InputState } from '../systems/InputSystem';
+import { getMove, type MoveDef } from '../systems/Moves';
 import { Fighter, type FighterStats } from './Fighter';
 
 export interface PlayerConfig extends FighterStats {
@@ -15,11 +16,20 @@ export interface PlayerConfig extends FighterStats {
   moveset: { punch: string; kick: string; airAttack: string; special: string };
 }
 
+export interface WeaponState {
+  id: string; // key in weapons.json
+  uses: number; // remaining durability
+}
+
 export class Player extends Fighter {
   energy: number;
   energyDenied = 0; // frames left to flash the energy bar after a failed special
+  deathPending = false; // GameScene checks this to spend a life
+  weapon: WeaponState | null = null;
 
-  private readonly buffer = { jump: 0, punch: 0, kick: 0, special: 0 };
+  private brokenWeapon: string | null = null;
+  private readonly weaponSprite: Phaser.GameObjects.Image;
+  private readonly buffer = { jump: 0, punch: 0, kick: 0, special: 0, interact: 0 };
   private walkClock = 0;
   private bob = 0;
 
@@ -31,6 +41,7 @@ export class Player extends Fighter {
   ) {
     super(scene, 'player', x, groundY, cfg, 'player-idle');
     this.energy = cfg.maxEnergy;
+    this.weaponSprite = scene.add.image(0, 0, 'weapon-lathi').setVisible(false);
   }
 
   get maxEnergy(): number {
@@ -41,8 +52,35 @@ export class Player extends Fighter {
   get invincible(): boolean {
     return super.invincible || (this.state === 'attack' && !!this.attack?.move.invincible);
   }
-  
-  deathPending = false; // GameScene checks this to spend a life
+
+  // ---------- weapon ----------
+
+  equip(id: string, uses: number): void {
+    this.weapon = { id, uses };
+  }
+
+  unequip(): WeaponState | null {
+    const w = this.weapon;
+    this.weapon = null;
+    return w;
+  }
+
+  /** ItemManager polls this once per frame to show the break effect. */
+  takeBrokenWeapon(): string | null {
+    const id = this.brokenWeapon;
+    this.brokenWeapon = null;
+    return id;
+  }
+
+  get wantsInteract(): boolean {
+    return this.buffer.interact > 0;
+  }
+
+  consumeInteract(): void {
+    this.buffer.interact = 0;
+  }
+
+  // ---------- life ----------
 
   /** Fighter calls this when the knockdown after reaching 0 health is over. */
   protected onDefeated(): void {
@@ -60,6 +98,13 @@ export class Player extends Fighter {
 
   onHitLanded(move: MoveDef): void {
     this.energy = Math.min(this.cfg.maxEnergy, this.energy + (move.energyGain ?? 0));
+    if (move.weapon && this.weapon) {
+      this.weapon.uses -= 1;
+      if (this.weapon.uses <= 0) {
+        this.brokenWeapon = this.weapon.id;
+        this.weapon = null;
+      }
+    }
   }
 
   /** Remember presses. GameScene also calls this during hit-pause so no input is lost. */
@@ -69,6 +114,7 @@ export class Player extends Fighter {
     if (input.punch) this.buffer.punch = n;
     if (input.kick) this.buffer.kick = n;
     if (input.special) this.buffer.special = n;
+    if (input.interact) this.buffer.interact = n;
   }
 
   update(dt: number, input: InputState): void {
@@ -136,7 +182,8 @@ export class Player extends Fighter {
     } else if (b.kick > 0) {
       this.startAttack(ms.kick);
     } else if (b.punch > 0) {
-      this.startAttack(ms.punch);
+      // With a weapon, the punch button swings it
+      this.startAttack(this.weapon ? getWeapon(this.weapon.id).attack : ms.punch);
     }
   }
 
@@ -158,8 +205,9 @@ export class Player extends Fighter {
     if (m.lunge && a.frame < activeEnd) this.x += this.facing * m.lunge * dt;
     if (!this.isGrounded) this.x += input.moveX * this.cfg.speedX * 0.5 * dt; // air drift
 
-    // Combo: a punch buffered during the swing chains once the hit frames are over
-    if (m.next && a.frame >= activeEnd && this.buffer.punch > 0) {
+    // Combo: a punch buffered during the swing chains once the hit frames are over.
+    // Weapon combos only continue while the weapon is still in hand.
+    if (m.next && (!m.weapon || this.weapon) && a.frame >= activeEnd && this.buffer.punch > 0) {
       if (input.moveX !== 0) this.facing = input.moveX > 0 ? 1 : -1;
       this.startAttack(m.next);
       return;
@@ -173,11 +221,43 @@ export class Player extends Fighter {
     if (this.state === 'attack' && this.attack?.move.endOnLand) this.setState('free');
   }
 
+  // ---------- drawing ----------
+
   private draw(): void {
     let tex = 'player-idle';
     if (this.state === 'attack' && this.attack) tex = `player-${this.attack.move.pose}`;
     else if (this.state === 'hurt') tex = 'player-hurt';
     else if (this.state === 'down') tex = 'player-down';
     this.syncSprites(tex, this.bob);
+    this.drawWeapon();
+  }
+
+  /** The held weapon is a separate sprite that follows the hand and sweeps during a swing. */
+  private drawWeapon(): void {
+    const w = this.weapon;
+    const s = this.weaponSprite;
+    if (!w || this.state === 'down') {
+      s.setVisible(false);
+      return;
+    }
+
+    const def = getWeapon(w.id);
+    if (s.texture.key !== def.texture) s.setTexture(def.texture);
+    s.setOrigin(def.originX, 0.5);
+
+    let angle = def.carry;
+    const a = this.attack;
+    if (this.state === 'attack' && a?.move.weapon) {
+      const t = Phaser.Math.Clamp(a.frame / (a.move.startup + a.move.active), 0, 1);
+      angle = Phaser.Math.Linear(def.swingFrom, def.swingTo, t);
+    }
+
+    const f = this.facing;
+    s.setVisible(true)
+      .setScale(f, 1) // mirror when facing left...
+      .setAngle(angle * f) // ...and mirror the rotation too
+      .setPosition(Math.round(this.x + f * 9), Math.round(this.groundY - this.z - 20))
+      .setDepth(this.groundY + 0.5)
+      .setAlpha(this.sprite.alpha);
   }
 }

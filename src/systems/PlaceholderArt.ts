@@ -252,6 +252,12 @@ export function createPlaceholderTextures(
     g.fillRect(35, 26, 5, 6);
   });
 
+  make(scene, 'player-swing', 40, 40, (g) => {
+    drawFighter(g, { armR: false });
+    g.fillStyle(SKIN);
+    g.fillRect(26, 17, 8, 3);
+  });
+
   make(scene, 'player-spin', 40, 40, (g) => {
     drawFighter(g, {
       armR: false,

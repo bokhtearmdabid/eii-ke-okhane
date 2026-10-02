@@ -38,11 +38,6 @@ function ensureTextures(scene: Phaser.Scene): void {
   });
 }
 
-/**
- * The "screen is locked" feedback:
- *  - a padlock + remaining-enemy count at the top-centre of the HUD
- *  - an iron gate that drops in at the right edge of the locked screen
- */
 export class GateLock {
   private readonly icon: Phaser.GameObjects.Image;
   private readonly label: Phaser.GameObjects.Text;
