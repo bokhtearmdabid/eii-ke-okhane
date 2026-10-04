@@ -1,0 +1,29 @@
+{
+  "brahmadaitya": {
+    "id": "brahmadaitya",
+    "name": "Brahmadaitya",
+    "subtitle": "Restless Spirit of the Old Banyan",
+    "texture": "brahma",
+    "maxHealth": 360,
+    "gravity": 720,
+    "iFramesOnHit": 0,
+    "getupIFrames": 0,
+    "speed": 40,
+    "speedY": 30,
+    "hover": 4,
+    "poise": 45,
+    "staggerFrames": 40,
+    "phaseThreshold": 0.5,
+    "idleMin": 40,
+    "idleMax": 80,
+    "score": 3000,
+    "coinDrop": 12,
+    "hurtbox": { "width": 26, "height": 58, "depth": 18 },
+    "phase2": { "tempo": 1.25, "speedMul": 1.35, "idleMul": 0.6, "chainChance": 0.5 },
+    "attacks": [
+      { "move": "brahmaSlam", "minRange": 8, "maxRange": 50, "laneTolerance": 12, "trackFrames": 14, "weight": 4, "weight2": 3 },
+      { "move": "brahmaSweep", "minRange": 0, "maxRange": 60, "laneTolerance": 16, "trackFrames": 0, "weight": 2, "weight2": 3 },
+      { "move": "brahmaCharge", "minRange": 110, "maxRange": 180, "laneTolerance": 8, "trackFrames": 24, "weight": 3, "weight2": 4 }
+    ]
+  }
+}
