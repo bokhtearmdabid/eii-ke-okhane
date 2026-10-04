@@ -29,6 +29,7 @@ export interface MoveDef {
   endOnLand?: boolean;
   next?: string;
   weapon?: boolean;
+  warn?: 'rect' | 'ellipse'; // shape of the ground warning shown during a boss wind-up
 }
 
 export const MOVES = movesJson as unknown as Record<string, MoveDef>;
