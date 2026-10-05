@@ -5,6 +5,7 @@ import type { EnemyDef } from '../systems/EnemyDefs';
 import { EnemyHealthBar } from '../ui/EnemyHealthBar';
 import { Fighter } from './Fighter';
 import type { Player } from './Player';
+import { ActorAnimator } from '../systems/ActorAnimator';
 
 export type EnemyState = 'idle' | 'approach' | 'circle' | 'attack' | 'hurt' | 'down' | 'dead';
 export type EnemyRole = 'attacker' | 'waiter';
@@ -50,6 +51,7 @@ export class Enemy extends Fighter {
     this.aiDuration = Phaser.Math.Between(def.thinkMin, def.thinkMax);
     this.circleDir = Math.random() < 0.5 ? 1 : -1;
     this.healthBar = new EnemyHealthBar(scene, def.maxHealth);
+    this.animator = ActorAnimator.create(scene, def.texture); // 'petni', ...
   }
 
   get isDead(): boolean {
@@ -92,7 +94,7 @@ export class Enemy extends Fighter {
       const busy = this.updateReaction(df); // hurt / down / getup (may trigger onDefeated)
       if (busy) {
         this.role = 'waiter'; // being hit always releases the attack slot
-        if (this.aiState !== 'dead') this.aiState = this.state === 'hurt' ? 'hurt' : 'down';
+        if ((this.aiState as EnemyState) !== 'dead') this.aiState = this.state === 'hurt' ? 'hurt' : 'down';
       } else {
         if (this.aiState === 'hurt' || this.aiState === 'down') {
           this.cooldown = Math.max(this.cooldown, 30);
@@ -110,7 +112,16 @@ export class Enemy extends Fighter {
     this.healthBar.destroy();
     super.destroy();
   }
-
+    /** Used when the boss falls: every remaining enemy fades away. */
+  banish(): void {
+    if (this.aiState === 'dead') return;
+    this.health = 0;
+    this.vx = 0;
+    this.vz = 0;
+    this.z = 0;
+    this.setState('free');
+    this.onDefeated(); // sets role, clears the attack, enters 'dead' (fade-out)
+  }
   /** Called by Fighter when the knockdown after reaching 0 health is over. */
   protected onDefeated(): void {
     this.role = 'waiter';
@@ -246,6 +257,26 @@ export class Enemy extends Fighter {
     this.groundY += Phaser.Math.Clamp(ty - this.groundY, -stepY, stepY);
   }
 
+    private atlasFrame(): string | null {
+    const an = this.animator;
+    if (!an) return null;
+    const st = this.stateTime / FRAME_RATE;
+    const a = this.attack;
+
+    if (this.aiState === 'dead') return an.still(['down'], 99); // last frame: lying still while fading
+    if (this.state === 'down') {
+      return this.isGrounded
+        ? an.play(['down'], st)
+        : an.still(['knockdown', 'down'], this.vz > 0 ? 0 : 1);
+    }
+    if (this.state === 'getup') return an.play(['getup', 'idle'], st);
+    if (this.state === 'hurt') return an.play(['hurt'], st);
+    if (this.state === 'attack' && a) return an.move([a.id, a.move.pose], a.frame, a.move);
+
+    const walking = this.aiState === 'approach' || this.aiState === 'circle';
+    return an.play(walking ? ['walk', 'idle'] : ['idle'], this.clock);
+  }
+    
   /** Gentle push away from other enemies so they don't stack on one spot. */
   private separate(others: readonly Enemy[], dt: number): void {
     for (const o of others) {
@@ -277,7 +308,9 @@ export class Enemy extends Fighter {
       tex = a.frame < a.move.startup ? `${t}-windup` : `${t}-${a.move.pose}`;
     }
 
-    this.syncSprites(tex, bob);
+    const frame = this.atlasFrame();
+    if (frame && this.animator) this.syncSprites(this.animator.atlas, bob, frame);
+    else this.syncSprites(tex, bob);
 
     // Telegraph: flicker red during the wind-up so the player can react
     const a = this.attack;

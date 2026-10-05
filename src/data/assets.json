@@ -1,0 +1,13 @@
+{
+  "atlases": [
+    { "key": "rafiq", "image": "atlases/rafiq.png", "data": "atlases/rafiq.json" },
+    { "key": "petni", "image": "atlases/petni.png", "data": "atlases/petni.json" },
+    { "key": "brahma", "image": "atlases/brahma.png", "data": "atlases/brahma.json" }
+  ],
+  "images": [
+    { "key": "bg-shakhari-far", "url": "images/bg/bg-shakhari-far.png" },
+    { "key": "bg-shakhari-mid", "url": "images/bg/bg-shakhari-mid.png" },
+    { "key": "bg-shakhari-near", "url": "images/bg/bg-shakhari-near.png" },
+    { "key": "floor-shakhari", "url": "images/bg/floor-shakhari.png" }
+  ]
+}

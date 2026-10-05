@@ -1,13 +1,11 @@
 import Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, SCENE_KEYS } from '../config/constants';
-import { createPlaceholderTextures } from '../systems/PlaceholderArt';
-import { createItemTextures } from '../systems/ItemArt';
+import { queueAssets } from '../systems/AssetManifest';
 import { createBossTextures } from '../systems/BossArt';
+import { createItemTextures } from '../systems/ItemArt';
+import { createPlaceholderTextures } from '../systems/PlaceholderArt';
 
-/**
- * Loads all assets while showing a progress bar.
- * Nothing to load yet; real sprites, audio and JSON will be queued in preload() later.
- */
+/** Loads everything in assets.json while showing a progress bar. */
 export class PreloadScene extends Phaser.Scene {
   constructor() {
     super(SCENE_KEYS.Preload);
@@ -18,7 +16,9 @@ export class PreloadScene extends Phaser.Scene {
     const cy = GAME_HEIGHT / 2;
     const barW = 200;
 
-    this.add.text(cx, cy - 20, 'LOADING', { fontFamily: FONT, fontSize: '10px', color: '#38e8ff' }).setOrigin(0.5);
+    this.add
+      .text(cx, cy - 20, 'LOADING', { fontFamily: FONT, fontSize: '10px', color: '#38e8ff' })
+      .setOrigin(0.5);
     this.add.rectangle(cx, cy, barW + 4, 10, 0x1d1240).setStrokeStyle(1, COLORS.neonCyan);
     const fill = this.add.rectangle(cx - barW / 2, cy, 0, 6, COLORS.neonPink).setOrigin(0, 0.5);
 
@@ -26,14 +26,15 @@ export class PreloadScene extends Phaser.Scene {
       fill.width = barW * p;
     });
 
-    // Future: this.load.setPath('assets/'); this.load.image(...); this.load.json(...);
+    queueAssets(this);
   }
 
-    create(): void {
+  create(): void {
+    // Real art was loaded in preload(). Each placeholder generator skips keys that already
+    // exist, so anything delivered as art replaces its placeholder automatically.
     createPlaceholderTextures(this);
     createItemTextures(this);
     createBossTextures(this);
     this.scene.start(SCENE_KEYS.Menu);
-    
   }
 }

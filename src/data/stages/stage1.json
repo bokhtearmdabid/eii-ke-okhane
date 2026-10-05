@@ -4,11 +4,22 @@
   "name": "Shakhari Bazar",
   "length": 2400,
   "playerStart": { "x": 60, "y": 208 },
+    "background": {
+    "layers": [
+      { "key": "bg-shakhari-far", "factor": 0.1 },
+      { "key": "bg-shakhari-mid", "factor": 0.4 },
+      { "key": "bg-shakhari-near", "factor": 0.75 }
+    ],
+    "floor": "floor-shakhari"
+  },
+  
   "pickups": [
     { "kind": "weapon", "id": "lathi", "x": 150, "y": 215 },
     { "kind": "weapon", "id": "brick", "x": 760, "y": 200 },
     { "kind": "weapon", "id": "paakha", "x": 1250, "y": 225 },
-    { "kind": "food", "id": "singara", "x": 1700, "y": 210 }
+    { "kind": "food", "id": "singara", "x": 1700, "y": 210 },
+    { "kind": "food", "id": "biryani", "x": 2080, "y": 215 },
+    { "kind": "weapon", "id": "lathi", "x": 2110, "y": 195 }
   ],
   "props": [
     { "type": "crate", "x": 230, "y": 190 },
@@ -32,8 +43,17 @@
         { "enemy": "petni", "side": "right", "delay": 0.0, "y": 190 },
         { "enemy": "petni", "side": "right", "delay": 0.8, "y": 225 },
         { "enemy": "petni", "side": "left", "delay": 1.6, "y": 205 }
+      ],
+      "boss": {
+      "id": "brahmadaitya",
+      "triggerX": 2100,
+      "summons": [
+        { "enemy": "petni", "side": "left", "y": 195 },
+        { "enemy": "petni", "side": "right", "y": 230 }
       ]
+     }
     },
+    
     {
       "id": "w2",
       "triggerX": 800,

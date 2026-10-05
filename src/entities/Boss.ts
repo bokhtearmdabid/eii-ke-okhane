@@ -6,6 +6,7 @@ import { burst } from '../systems/Debris';
 import { getMove, type MoveDef } from '../systems/Moves';
 import { Fighter } from './Fighter';
 import type { Player } from './Player';
+import { ActorAnimator } from '../systems/ActorAnimator';
 
 export const EVENT_BOSS_START = 'boss-start'; // (boss: Boss, lockX: number)
 export const EVENT_BOSS_PHASE = 'boss-phase'; // (phase: number, boss: Boss)
@@ -75,6 +76,7 @@ export abstract class Boss extends Fighter {
   ) {
     super(scene, 'enemy', x, groundY, def, `${def.texture}-idle`);
     this.gameScene = scene;
+    this.animator = ActorAnimator.create(scene, def.texture); // 'brahma'
     this.facing = -1;
     this.minX = -Infinity; // he walks in from off-screen; the arena limits apply after the intro
     this.maxX = Infinity;
@@ -436,6 +438,31 @@ export abstract class Boss extends Fighter {
     }
     return pool[pool.length - 1];
   }
+  
+    private atlasFrame(): string | null {
+    const an = this.animator;
+    if (!an) return null;
+    const a = this.attack;
+
+    switch (this.bossState) {
+      case 'telegraph':
+      case 'attack':
+      case 'recover':
+        // One animation covers wind-up, strike and recovery, stretched to the move's frame data
+        return a ? an.move([a.id, a.move.pose], a.frame, a.move) : null;
+      case 'stagger':
+        return an.play(['hurt', 'idle'], this.timer / FRAME_RATE);
+      case 'phaseChange':
+        return an.play(['roar', 'idle'], this.clock);
+      case 'dying':
+        return an.play(['kneel', 'hurt', 'idle'], this.timer / FRAME_RATE);
+      case 'intro':
+      case 'approach':
+        return an.play(['walk', 'idle'], this.clock);
+      default:
+        return an.play(['idle'], this.clock);
+    }
+  }
 
   private faceTarget(player: Player): void {
     this.facing = player.x >= this.x ? 1 : -1;
@@ -477,7 +504,9 @@ export abstract class Boss extends Fighter {
         break;
     }
 
-    this.syncSprites(tex, bob);
+    const frame = this.atlasFrame();
+    if (frame && this.animator) this.syncSprites(this.animator.atlas, bob, frame);
+    else this.syncSprites(tex, bob);
 
     // Spirit Whirl: flip every few frames so the spin reads as motion
     if (this.bossState === 'attack' && a?.move.pose === 'sweep') {

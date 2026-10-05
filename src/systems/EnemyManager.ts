@@ -22,7 +22,7 @@ export class EnemyManager {
     private readonly combat: CombatSystem,
     private readonly player: Player,
     private readonly worldWidth = WORLD_WIDTH,
-    readonly maxAttackers = MAX_ATTACKERS,
+    public maxAttackers = MAX_ATTACKERS,
   ) {}
 
   get aliveCount(): number {
@@ -42,6 +42,10 @@ export class EnemyManager {
     this.enemies.push(enemy);
     this.combat.add(enemy);
     return enemy;
+  }
+
+  banishAll(): void {
+  for (const e of this.enemies) e.banish();
   }
 
   update(dt: number): void {

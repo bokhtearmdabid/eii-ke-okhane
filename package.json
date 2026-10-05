@@ -9,5 +9,20 @@
     "preview": "vite preview --host",
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.{ts,json}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "pngjs": "^7.0.0",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vite": "^8.3.2"
+  },
+  "art:export": "node scripts/export-aseprite.mjs",
+  "art:test": "node scripts/make-test-art.mjs",
+  "art:test:force": "node scripts/make-test-art.mjs --force",
+  "dependencies": {
+    "phaser": "^3.90.0"
   }
 }

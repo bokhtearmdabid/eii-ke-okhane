@@ -29,6 +29,8 @@ export interface StageDef {
   waves: WaveDef[];
   props?: PropDef[];
   pickups?: PickupDef[];
+  boss?: BossStageDef;
+  background?: BackgroundDef;
 }
 
 export interface PickupDef {
@@ -36,6 +38,18 @@ export interface PickupDef {
   id: string; // key in weapons.json / foods.json
   x: number;
   y: number;
+}
+
+export interface BossSummonDef {
+  enemy: string; // key in EnemyManager's registry
+  side: 'left' | 'right';
+  y: number;
+}
+
+export interface BossStageDef {
+  id: string; // key in bosses.json and BossManager's registry
+  triggerX: number; // player x that starts the fight (must be after the last wave)
+  summons?: BossSummonDef[]; // arrive when the boss enters phase 2
 }
 
 /** Register new stages here as you add JSON files. */
@@ -73,4 +87,9 @@ export function getStage(id: string): StageDef {
   const def = STAGES[id];
   if (!def) throw new Error(`Unknown stage "${id}" (check StageDefs.ts)`);
   return validate(def);
+}
+
+export interface BackgroundDef {
+  layers: { key: string; factor: number }[]; // far -> near; keys come from assets.json
+  floor?: string;
 }

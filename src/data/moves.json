@@ -102,5 +102,30 @@
     "knockdown": true, "launch": 100,
     "hitPause": 5, "energyGain": 2, "lunge": 20,
     "hitbox": { "offsetX": 22, "width": 32, "zMin": 8, "zMax": 36, "depth": 20 }
+  },
+    "brahmaSlam": {
+    "name": "Root Slam", "pose": "slam", "warn": "rect",
+    "startup": 38, "active": 5, "recovery": 34,
+    "damage": 16, "hitstun": 0, "knockbackX": 150,
+    "knockdown": true, "launch": 150,
+    "hitPause": 9, "shake": 0.006,
+    "hitbox": { "offsetX": 36, "width": 44, "zMin": 0, "zMax": 60, "depth": 26 }
+  },
+
+  "brahmaSweep": {
+    "name": "Spirit Whirl", "pose": "sweep", "warn": "ellipse",
+    "startup": 30, "active": 14, "recovery": 30,
+    "damage": 12, "hitstun": 0, "knockbackX": 140,
+    "knockdown": true, "launch": 140,
+    "hitPause": 7, "shake": 0.004,
+    "hitbox": { "offsetX": 0, "width": 110, "zMin": 0, "zMax": 16, "depth": 34 }
+  },
+  "brahmaCharge": {
+    "name": "Banyan Charge", "pose": "charge", "warn": "rect",
+    "startup": 40, "active": 26, "recovery": 44,
+    "damage": 14, "hitstun": 0, "knockbackX": 170,
+    "knockdown": true, "launch": 120,
+    "hitPause": 8, "shake": 0.005, "lunge": 300,
+    "hitbox": { "offsetX": 30, "width": 36, "zMin": 0, "zMax": 56, "depth": 24 }
   }
 }

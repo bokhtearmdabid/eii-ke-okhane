@@ -4,7 +4,7 @@ type Gfx = Phaser.GameObjects.Graphics;
 
 function make(scene: Phaser.Scene, key: string, w: number, h: number, draw: (g: Gfx) => void): void {
   if (scene.textures.exists(key)) return;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
   draw(g);
   g.generateTexture(key, w, h);
   g.destroy();

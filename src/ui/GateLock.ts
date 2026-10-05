@@ -12,7 +12,7 @@ function ensureTextures(scene: Phaser.Scene): void {
     draw: (g: Phaser.GameObjects.Graphics) => void,
   ): void => {
     if (scene.textures.exists(key)) return;
-    const g = scene.make.graphics({ x: 0, y: 0, add: false });
+    const g = scene.make.graphics({ x: 0, y: 0 }, false);
     draw(g);
     g.generateTexture(key, w, h);
     g.destroy();
@@ -58,12 +58,15 @@ export class GateLock {
       .setVisible(false);
   }
 
-  lock(lockX: number): void {
+    lock(lockX: number, withGate = true): void {
     this.scene.tweens.killTweensOf([this.icon, this.label]);
     this.icon.setTexture('lock-closed').setAlpha(1).setVisible(true);
     this.label.setColor('#ff6677').setAlpha(1).setVisible(true);
 
     this.gate?.destroy();
+    this.gate = null;
+    if (!withGate) return;
+
     const gate = this.scene.add
       .image(lockX + GAME_WIDTH - 5, GATE_BASE_Y - 60, 'gate')
       .setOrigin(0.5, 1)
@@ -77,6 +80,10 @@ export class GateLock {
       duration: 350,
       ease: 'Bounce.Out',
     });
+  }
+
+  setText(text: string): void {
+    this.label.setText(text);
   }
 
   setRemaining(n: number): void {

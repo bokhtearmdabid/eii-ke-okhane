@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { LANE_BOTTOM, LANE_TOP, WORLD_WIDTH } from '../config/constants';
 import type { MoveDef } from '../systems/Moves';
 import type { Box, Hittable } from '../systems/CombatSystem';
+import type { ActorAnimator } from '../systems/ActorAnimator';
 
 export interface FighterStats {
   maxHealth: number;
@@ -48,6 +49,9 @@ export abstract class Fighter {
 
   protected stateTime = 0;
   protected hurtDuration = 0;
+
+    /** Atlas animation picker; stays null while the character still uses placeholder art. */
+  protected animator: ActorAnimator | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -226,8 +230,11 @@ export abstract class Fighter {
 
   // ---------- drawing ----------
 
-  protected syncSprites(texture: string, bob = 0): void {
-    if (this.sprite.texture.key !== texture) this.sprite.setTexture(texture);
+    protected syncSprites(texture: string, bob = 0, frame?: string): void {
+    if (this.sprite.texture.key !== texture || (frame !== undefined && this.sprite.frame.name !== frame)) {
+      this.sprite.setTexture(texture, frame);
+      this.sprite.setOrigin(0.5, 1); // atlas frames may carry their own pivot; feet are always bottom-centre
+    }
 
     this.sprite.setPosition(Math.round(this.x), Math.round(this.groundY - this.z - bob));
     this.sprite.setFlipX(this.facing === -1);

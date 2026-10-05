@@ -1,0 +1,46 @@
+{
+  "rafiq": {
+    "cell": 64,
+    "anims": {
+      "idle": { "frames": 3, "fps": 6, "loop": true },
+      "walk": { "frames": 6, "fps": 10, "loop": true },
+      "jump": { "frames": 3 },
+      "punch1": { "frames": 4, "impact": 1 },
+      "punch2": { "frames": 4, "impact": 1 },
+      "punch3": { "frames": 6, "impact": 2 },
+      "kick": { "frames": 5, "impact": 2 },
+      "jumpKick": { "frames": 3, "impact": 1 },
+      "lathiSpin": { "frames": 8, "impact": 1, "hitFrames": 5 },
+      "swing": { "frames": 5, "impact": 2 },
+      "hurt": { "frames": 2, "fps": 8 },
+      "knockdown": { "frames": 2 },
+      "down": { "frames": 2, "fps": 6 },
+      "getup": { "frames": 4, "fps": 10 }
+    }
+  },
+  "petni": {
+    "cell": 64,
+    "anims": {
+      "idle": { "frames": 4, "fps": 5, "loop": true },
+      "walk": { "frames": 4, "fps": 7, "loop": true },
+      "attack": { "frames": 8, "impact": 4 },
+      "hurt": { "frames": 2, "fps": 8 },
+      "knockdown": { "frames": 2 },
+      "down": { "frames": 2, "fps": 6 },
+      "getup": { "frames": 3, "fps": 8 }
+    }
+  },
+  "brahma": {
+    "cell": 96,
+    "anims": {
+      "idle": { "frames": 4, "fps": 5, "loop": true },
+      "walk": { "frames": 6, "fps": 7, "loop": true },
+      "slam": { "frames": 9, "impact": 5 },
+      "sweep": { "frames": 10, "impact": 4, "hitFrames": 4 },
+      "charge": { "frames": 8, "impact": 3, "hitFrames": 3 },
+      "roar": { "frames": 4, "fps": 8, "loop": true },
+      "hurt": { "frames": 2, "fps": 8 },
+      "kneel": { "frames": 4, "fps": 6 }
+    }
+  }
+}

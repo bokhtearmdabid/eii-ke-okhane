@@ -4,6 +4,7 @@ import { getWeapon } from '../systems/ItemDefs';
 import type { InputState } from '../systems/InputSystem';
 import { getMove, type MoveDef } from '../systems/Moves';
 import { Fighter, type FighterStats } from './Fighter';
+import { ActorAnimator } from '../systems/ActorAnimator';
 
 export interface PlayerConfig extends FighterStats {
   id: string;
@@ -32,6 +33,8 @@ export class Player extends Fighter {
   private readonly buffer = { jump: 0, punch: 0, kick: 0, special: 0, interact: 0 };
   private walkClock = 0;
   private bob = 0;
+  private moving = false; // set by updateFree; read when choosing walk vs idle
+  private animClock = 0; // seconds; drives looping animations
 
   constructor(
     scene: Phaser.Scene,
@@ -42,6 +45,7 @@ export class Player extends Fighter {
     super(scene, 'player', x, groundY, cfg, 'player-idle');
     this.energy = cfg.maxEnergy;
     this.weaponSprite = scene.add.image(0, 0, 'weapon-lathi').setVisible(false);
+    this.animator = ActorAnimator.create(scene, cfg.id);
   }
 
   get maxEnergy(): number {
@@ -121,6 +125,7 @@ export class Player extends Fighter {
     const df = dt * FRAME_RATE;
 
     this.bufferActions(input);
+    this.animClock += dt;
     this.tickTimers(df);
     this.energy = Math.min(this.cfg.maxEnergy, this.energy + this.cfg.energyRegen * dt);
     this.energyDenied = Math.max(0, this.energyDenied - df);
@@ -160,6 +165,7 @@ export class Player extends Fighter {
     this.tryStartAttack();
 
     const moving = (mx !== 0 || my !== 0) && this.isGrounded;
+    this.moving = moving;
     this.walkClock = moving ? this.walkClock + dt : 0;
     this.bob = moving && Math.floor(this.walkClock * 8) % 2 === 1 ? 1 : 0;
   }
@@ -223,14 +229,45 @@ export class Player extends Fighter {
 
   // ---------- drawing ----------
 
-  private draw(): void {
-    let tex = 'player-idle';
-    if (this.state === 'attack' && this.attack) tex = `player-${this.attack.move.pose}`;
-    else if (this.state === 'hurt') tex = 'player-hurt';
-    else if (this.state === 'down') tex = 'player-down';
-    this.syncSprites(tex, this.bob);
+    private draw(): void {
+    const frame = this.atlasFrame();
+    if (frame && this.animator) {
+      this.syncSprites(this.animator.atlas, 0, frame);
+    } else {
+      let tex = 'player-idle';
+      if (this.state === 'attack' && this.attack) tex = `player-${this.attack.move.pose}`;
+      else if (this.state === 'hurt') tex = 'player-hurt';
+      else if (this.state === 'down') tex = 'player-down';
+      this.syncSprites(tex, this.bob);
+    }
     this.drawWeapon();
   }
+
+    /** Which atlas frame matches the current state? Null means "use the placeholder". */
+    private atlasFrame(): string | null {
+      const an = this.animator;
+      if (!an) return null;
+      const st = this.stateTime / FRAME_RATE; // seconds in the current state
+      const a = this.attack;
+
+      switch (this.state) {
+        case 'attack':
+          return a ? an.move([a.id, a.move.pose], a.frame, a.move) : null;
+        case 'hurt':
+          return an.play(['hurt'], st);
+        case 'down':
+          return this.isGrounded
+            ? an.play(['down'], st)
+            : an.still(['knockdown', 'down'], this.vz > 0 ? 0 : 1);
+        case 'getup':
+          return an.play(['getup', 'idle'], st);
+        default:
+          if (!this.isGrounded) {
+            return an.still(['jump', 'idle'], this.vz > 80 ? 0 : this.vz < -80 ? 2 : 1);
+          }
+          return an.play(this.moving ? ['walk', 'idle'] : ['idle'], this.animClock);
+      }
+    }
 
   /** The held weapon is a separate sprite that follows the hand and sweeps during a swing. */
   private drawWeapon(): void {

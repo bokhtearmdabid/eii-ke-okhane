@@ -9,11 +9,21 @@ import {
   STREET_TOP,
 } from '../config/constants';
 import playerData from '../data/player.json';
+import {
+  type Boss,
+  EVENT_BOSS_DEFEATED,
+  EVENT_BOSS_GONE,
+  EVENT_BOSS_PHASE,
+  EVENT_BOSS_START,
+} from '../entities/Boss';
 import type { Enemy } from '../entities/Enemy';
 import { Player } from '../entities/Player';
+import { Backdrop } from '../systems/Backdrop';
+import { BossManager } from '../systems/BossManager';
 import { CombatSystem, type HitEvent, type Hittable } from '../systems/CombatSystem';
 import { DebugDraw } from '../systems/DebugDraw';
 import { EnemyManager, EVENT_ENEMY_DEFEATED } from '../systems/EnemyManager';
+import type { InputState } from '../systems/InputSystem';
 import { InputSystem } from '../systems/InputSystem';
 import type { BreakableDef, DropEntry, FoodDef, WeaponDef } from '../systems/ItemDefs';
 import {
@@ -33,6 +43,7 @@ import {
   EVENT_WAVE_START,
   StageManager,
 } from '../systems/StageManager';
+import { BossBar } from '../ui/BossBar';
 import { GateLock } from '../ui/GateLock';
 import { GoArrow } from '../ui/GoArrow';
 import { Hud } from '../ui/Hud';
@@ -40,6 +51,20 @@ import { Hud } from '../ui/Hud';
 const START_LIVES = 3;
 const COIN_SCORE = 10;
 const LIFE_BONUS = 1000; // stage-clear bonus per remaining life
+const LETTERBOX_H = 16;
+const SLOWMO_MS = 900; // real time spent in slow motion after the boss's final blow
+const SLOWMO_SCALE = 0.3;
+
+/** Fed to the player while a cutscene is playing. */
+const NO_INPUT: InputState = {
+  moveX: 0,
+  moveY: 0,
+  jump: false,
+  punch: false,
+  kick: false,
+  special: false,
+  interact: false,
+};
 
 /** Small chance that a defeated enemy drops something to eat. */
 const ENEMY_DROPS: DropEntry[] = [
@@ -53,18 +78,24 @@ export class GameScene extends Phaser.Scene {
   private run!: RunState;
   private player!: Player;
   private enemies!: EnemyManager;
+  private bosses!: BossManager;
   private items!: ItemManager;
   private props!: PropManager;
   private stage!: StageManager;
   private combat!: CombatSystem;
   private inputSystem!: InputSystem;
+  private backdrop!: Backdrop;
   private hud!: Hud;
+  private bossBar!: BossBar;
   private gate!: GateLock;
   private goArrow!: GoArrow;
   private debugDraw!: DebugDraw;
   private debugText!: Phaser.GameObjects.Text;
 
   private ended = false; // game over or stage clear: the world is frozen
+  private cutscene = false; // boss defeat: player input is ignored
+  private slowUntil = 0;
+  private bars: Phaser.GameObjects.Rectangle[] = [];
   private hitPauseMs = 0;
   private pauseTargets: Hittable[] = [];
 
@@ -82,12 +113,17 @@ export class GameScene extends Phaser.Scene {
     this.hitPauseMs = 0;
     this.pauseTargets = [];
     this.ended = false;
+    this.cutscene = false;
+    this.slowUntil = 0;
+    this.bars = [];
 
     const def = getStage(this.stageId);
     this.run = new RunState(START_LIVES);
 
-    new ParallaxBackground(this, def.length);
-    this.drawStreet(def.length);
+    // Real background art when it has been delivered, procedural placeholders otherwise
+    this.backdrop = new Backdrop(this, def.background, def.length);
+    if (!this.backdrop.hasLayers) new ParallaxBackground(this, def.length);
+    if (!this.backdrop.hasFloor) this.drawStreet(def.length);
 
     this.inputSystem = new InputSystem(this);
     this.combat = new CombatSystem();
@@ -97,9 +133,10 @@ export class GameScene extends Phaser.Scene {
     this.combat.add(this.player);
 
     this.enemies = new EnemyManager(this, this.combat, this.player, def.length);
+    this.bosses = new BossManager(this, this.combat, this.player);
     this.items = new ItemManager(this, this.combat, this.player);
     this.props = new PropManager(this, this.combat, this.items);
-    this.stage = new StageManager(this, def, this.player, this.enemies);
+    this.stage = new StageManager(this, def, this.player, this.enemies, this.bosses);
 
     for (const p of def.props ?? []) this.props.spawn(p.type, p.x, p.y);
     for (const k of def.pickups ?? []) this.items.place(k.kind, k.id, k.x, k.y);
@@ -110,7 +147,11 @@ export class GameScene extends Phaser.Scene {
     cam.setDeadzone(50, GAME_HEIGHT);
     cam.roundPixels = true;
 
+    // Dev shortcut: open the game as http://localhost:5173/?boss to skip straight to the boss
+    if (new URLSearchParams(window.location.search).has('boss')) this.stage.debugSkipToBoss();
+
     this.hud = new Hud(this, this.player, this.run, playerData.name);
+    this.bossBar = new BossBar(this);
     this.gate = new GateLock(this);
     this.goArrow = new GoArrow(this);
     this.debugDraw = new DebugDraw(this);
@@ -163,7 +204,27 @@ export class GameScene extends Phaser.Scene {
     });
     this.listen(EVENT_STAGE_COMPLETE, () => this.finishStage());
 
+    // Boss events
+    this.listen(EVENT_BOSS_START, (boss: Boss, lockX: number) => {
+      this.gate.lock(lockX, false); // padlock only: the boss walks in through the right edge
+      this.gate.setText('BOSS');
+      this.goArrow.hide();
+      this.bossBar.show(boss.name.toUpperCase());
+      this.banner(`${boss.name.toUpperCase()}\n${boss.subtitle.toUpperCase()}`);
+    });
+    this.listen(EVENT_BOSS_PHASE, () => {
+      this.stage.spawnBossSummons();
+      this.cameras.main.flash(250, 255, 80, 120);
+      this.cameras.main.shake(500, 0.005);
+      this.banner('THE SPIRIT RAGES!');
+    });
+    this.listen(EVENT_BOSS_DEFEATED, () => this.startBossCutscene());
+    this.listen(EVENT_BOSS_GONE, (boss: Boss) => this.endBossCutscene(boss));
+
     this.input.keyboard?.on('keydown-H', () => this.debugDraw.toggle());
+    // Boss test keys (only while the H overlay is on): B = boss to 52% HP, M = boss to 12 HP
+    this.input.keyboard?.on('keydown-B', () => this.debugBossHp(0.52));
+    this.input.keyboard?.on('keydown-M', () => this.debugBossHp(0, 12));
     this.input.keyboard?.once('keydown-ESC', () => this.scene.start(SCENE_KEYS.Menu));
 
     this.banner(`${def.title}\n${def.name.toUpperCase()}`);
@@ -176,7 +237,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     const real = Math.min(delta, 50); // clamp so tab-switching doesn't teleport us
-    const input = this.inputSystem.read();
+    const read = this.inputSystem.read(); // always read so key presses are consumed
+    const input = this.cutscene ? NO_INPUT : read;
 
     if (this.hitPauseMs > 0) {
       // HIT-PAUSE: the world is frozen. Only shake the victims and remember button presses.
@@ -185,9 +247,11 @@ export class GameScene extends Phaser.Scene {
       const jitter = Math.floor(this.hitPauseMs / 33) % 2 === 0 ? 1 : -1;
       for (const f of this.pauseTargets) f.sprite.x = Math.round(f.x) + jitter;
     } else {
-      const dt = real / 1000;
+      const slow = this.time.now < this.slowUntil ? SLOWMO_SCALE : 1;
+      const dt = (real / 1000) * slow;
       this.player.update(dt, input);
       this.enemies.update(dt);
+      this.bosses.update(dt);
       this.stage.update(dt);
       const thrownHits = this.items.update(dt);
       this.props.update(dt);
@@ -196,6 +260,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.stage.phase === 'locked') this.gate.setRemaining(this.stage.remaining);
+
+    const boss = this.bosses.boss;
+    if (boss) this.bossBar.update(real / FRAME_MS, boss.health, boss.maxHealth, boss.phase);
 
     this.hud.update();
     this.debugDraw.draw(this.combat.all, this.combat.targetList);
@@ -231,6 +298,62 @@ export class GameScene extends Phaser.Scene {
       `COINS ${this.run.coins}`,
     ]);
   }
+
+  // ---------- boss defeat cutscene ----------
+
+  /** Finishing blow: flash, slow motion, letterbox, minions fade, bar hides. */
+  private startBossCutscene(): void {
+    this.cutscene = true;
+    this.slowUntil = this.time.now + SLOWMO_MS;
+    this.bossBar.hide();
+    this.enemies.banishAll();
+    this.cameras.main.flash(350, 255, 255, 255);
+    this.cameras.main.shake(900, 0.006);
+    this.showLetterbox(true);
+  }
+
+  /** The boss has dissolved: give control back, burst coins, announce peace. */
+  private endBossCutscene(boss: Boss): void {
+    this.cutscene = false;
+    this.showLetterbox(false);
+
+    const r = boss.reward;
+    this.run.score += r.score;
+    this.items.dropCoins(boss.x, boss.groundY, r.coins);
+    this.floatText(boss.x, boss.groundY - 50, `+${r.score}`, '#ffffff');
+
+    this.gate.unlock();
+    this.banner('THE RESTLESS SPIRIT\nIS AT PEACE');
+  }
+
+  private showLetterbox(on: boolean): void {
+    if (this.bars.length === 0) {
+      for (const top of [true, false]) {
+        this.bars.push(
+          this.add
+            .rectangle(0, top ? -LETTERBOX_H : GAME_HEIGHT, GAME_WIDTH, LETTERBOX_H, 0x000000)
+            .setOrigin(0)
+            .setScrollFactor(0)
+            .setDepth(10800),
+        );
+      }
+    }
+    const [top, bottom] = this.bars;
+    this.tweens.add({ targets: top, y: on ? 0 : -LETTERBOX_H, duration: 400 });
+    this.tweens.add({
+      targets: bottom,
+      y: on ? GAME_HEIGHT - LETTERBOX_H : GAME_HEIGHT,
+      duration: 400,
+    });
+  }
+
+  private debugBossHp(fraction: number, flat?: number): void {
+    const b = this.bosses.boss;
+    if (!b || !this.debugDraw.enabled) return;
+    b.health = Math.min(b.health, flat ?? Math.floor(b.maxHealth * fraction));
+  }
+
+  // ---------- end screen ----------
 
   private showEndScreen(title: string, color: string, lines: string[]): void {
     this.ended = true;
@@ -390,11 +513,13 @@ export class GameScene extends Phaser.Scene {
     const p = this.player;
     const s = this.stage;
     const e = this.enemies;
+    const b = this.bosses.boss;
     const lines = [
       `player:${p.state} hp:${p.health} weapon:${p.weapon ? `${p.weapon.id} x${p.weapon.uses}` : '-'} fps:${this.game.loop.actualFps.toFixed(0)}`,
       `stage:${s.phase} wave:${Math.min(s.waveIndex + 1, s.waveCount)}/${s.waveCount} left:${s.remaining}`,
       `enemies:${e.aliveCount} attackers:${e.attackerCount}/${e.maxAttackers} items:${this.items.itemCount} props:${this.props.count}`,
     ];
+    if (b) lines.push(`boss:${b.bossState} phase:${b.phase} hp:${b.health}/${b.maxHealth}`);
     if (this.debugDraw.enabled) {
       for (const en of e.enemies) {
         lines.push(
