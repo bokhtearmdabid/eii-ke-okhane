@@ -43,17 +43,8 @@
         { "enemy": "petni", "side": "right", "delay": 0.0, "y": 190 },
         { "enemy": "petni", "side": "right", "delay": 0.8, "y": 225 },
         { "enemy": "petni", "side": "left", "delay": 1.6, "y": 205 }
-      ],
-      "boss": {
-      "id": "brahmadaitya",
-      "triggerX": 2100,
-      "summons": [
-        { "enemy": "petni", "side": "left", "y": 195 },
-        { "enemy": "petni", "side": "right", "y": 230 }
       ]
-     }
-    },
-    
+    },  
     {
       "id": "w2",
       "triggerX": 800,
@@ -87,5 +78,13 @@
         { "enemy": "petni", "side": "left", "delay": 5.6, "y": 240 }
       ]
     }
-  ]
+  ],
+    "boss": {
+    "id": "brahmadaitya",
+    "triggerX": 2100,
+    "summons": [
+      { "enemy": "petni", "side": "left", "y": 195 },
+      { "enemy": "petni", "side": "right", "y": 230 }
+    ]
+  }
 }
